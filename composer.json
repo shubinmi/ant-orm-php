@@ -1,0 +1,31 @@
+{
+    "name": "shubinmi/ant-orm-php",
+    "description": "Ant ORM. Easy way to manipulate your data.",
+    "keywords": [
+        "ant",
+        "framework"
+    ],
+    "homepage": "https://github.com/shubinmi/ant-orm-php",
+    "type": "library",
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Maxim Shubin",
+            "email": "shubinmi@gmail.com",
+            "homepage": "https://github.com/shubinmi",
+            "role": "Founder and cyclist"
+        }
+    ],
+    "support": {
+        "wiki": "https://github.com/shubinmi/ant-orm-php",
+        "source": "https://github.com/shubinmi/ant-orm-php"
+    },
+    "require": {
+        "php": ">=5.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "AntOrm\\": "src/"
+        }
+    }
+}
