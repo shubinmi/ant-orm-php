@@ -22,7 +22,7 @@ class MysqliAdapter implements AdapterInterface
         $config = (object)$config;
         $this->adapter = new \mysqli($config->host, $config->user, $config->pass, $config->db);
         if (mysqli_connect_errno()) {
-            throw new \Exception("Не удалось подключиться к бд:\n" . mysqli_connect_error());
+            throw new \Exception("Can't connect to db:\n" . mysqli_connect_error());
         }
         $this->adapter->set_charset("utf8");
     }

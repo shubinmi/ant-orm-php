@@ -4,9 +4,9 @@ namespace AntOrm\Storage\QueryRules;
 
 use AntOrm\Entity\EntityProperty;
 use AntOrm\Repository\CoreRepository;
-use AntOrm\Entity\SearchSql;
+use AntOrm\Storage\QueryRules\Sql\SearchSql;
 
-class Sql implements QueryRuleInterface
+class MySql implements QueryRuleInterface
 {
     const TABLE      = 'table';
     const TYPES      = 'types';
@@ -237,6 +237,7 @@ class Sql implements QueryRuleInterface
         $columns    = implode(',', $this->query[self::COLUMNS]);
         $paramsBind = $this->getParamsBindByQuery();
 
+        /** @noinspection SqlNoDataSourceInspection */
         $sql     = "INSERT INTO {$this->query[self::TABLE]} ({$columns}) VALUES ({$paramsBind})";
         $pattern = implode('', $this->query[self::TYPES]);
         $params  = array_filter($this->query[self::PARAMETERS]);
@@ -252,6 +253,7 @@ class Sql implements QueryRuleInterface
             $columns .= ' = ?';
         }
         $id      = empty($this->query[self::PARAMETERS]['id']) ? 0 : $this->query[self::PARAMETERS]['id'];
+        /** @noinspection SqlNoDataSourceInspection */
         $sql     = "UPDATE {$this->query[self::TABLE]} SET {$columns} WHERE id = {$id} ;";
         $pattern = implode('', $this->query[self::TYPES]);
         $params  = array_filter($this->query[self::PARAMETERS]);
@@ -275,6 +277,7 @@ class Sql implements QueryRuleInterface
             $where = ' 1 = 2 ';
         }
 
+        /** @noinspection SqlNoDataSourceInspection */
         $sql     = "DELETE FROM {$this->query[self::TABLE]} WHERE {$where}";
         $pattern = implode('', $this->query[self::TYPES]);
         $params  = array_filter($this->query[self::PARAMETERS]);

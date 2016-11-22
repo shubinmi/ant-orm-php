@@ -23,7 +23,7 @@ class CoreStorage
      * @var array
      */
     private $mapperAdapterToQueryRule = [
-        'mysqli' => 'sql'
+        'mysqli' => 'Sql\MySql'
     ];
 
     /**
