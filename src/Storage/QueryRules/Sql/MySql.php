@@ -29,11 +29,12 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
      * @param EntityProperty[] $properties
      *
      * @return array
+     * @throws \Exception
      */
     public function prepare($operation, array $properties)
     {
-        if (in_array($operation, get_class_methods('CrudDbInterface'))) {
-
+        if (!in_array($operation, get_class_methods('CrudDbInterface'))) {
+            throw new \Exception('Incorrect $operator value = ' . $operation);
         }
         $query = [self::TABLE => '', self::TYPES => [], self::PARAMETERS => [], self::COLUMNS => []];
         foreach ($properties as $property) {
