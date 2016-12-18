@@ -4,7 +4,7 @@ namespace AntOrm\Storage\QueryRules;
 
 use AntOrm\Entity\EntityProperty;
 
-interface QueryRuleInterface
+interface QueryPrepareInterface
 {
     /**
      * @param string           $operation

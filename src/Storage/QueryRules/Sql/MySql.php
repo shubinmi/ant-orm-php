@@ -1,12 +1,13 @@
 <?php
 
-namespace AntOrm\Storage\QueryRules;
+namespace AntOrm\Storage\QueryRules\Sql;
 
 use AntOrm\Entity\EntityProperty;
 use AntOrm\Repository\CoreRepository;
-use AntOrm\Storage\QueryRules\Sql\SearchSql;
+use AntOrm\Storage\QueryRules\CrudDbInterface;
+use AntOrm\Storage\QueryRules\QueryPrepareInterface;
 
-class MySql implements QueryRuleInterface
+class MySql implements QueryPrepareInterface, CrudDbInterface
 {
     const TABLE      = 'table';
     const TYPES      = 'types';
@@ -31,6 +32,9 @@ class MySql implements QueryRuleInterface
      */
     public function prepare($operation, array $properties)
     {
+        if (in_array($operation, get_class_methods('CrudDbInterface'))) {
+
+        }
         $query = [self::TABLE => '', self::TYPES => [], self::PARAMETERS => [], self::COLUMNS => []];
         foreach ($properties as $property) {
             if (empty($property)) {
@@ -73,6 +77,72 @@ class MySql implements QueryRuleInterface
         $result    = [&$sql, &$pattern, &$params];
 
         return $result;
+    }
+
+    public function insert()
+    {
+        $columns    = implode(',', $this->query[self::COLUMNS]);
+        $paramsBind = $this->getParamsBindByQuery();
+
+        /** @noinspection SqlNoDataSourceInspection */
+        $sql     = "INSERT INTO {$this->query[self::TABLE]} ({$columns}) VALUES ({$paramsBind})";
+        $pattern = implode('', $this->query[self::TYPES]);
+        $params  = array_filter($this->query[self::PARAMETERS]);
+        $result  = [&$sql, &$pattern, &$params];
+
+        return $result;
+    }
+
+    public function update()
+    {
+        $columns = implode('= ? ,', $this->query[self::COLUMNS]);
+        if (!empty($columns)) {
+            $columns .= ' = ?';
+        }
+        $id = empty($this->query[self::PARAMETERS]['id']) ? 0 : $this->query[self::PARAMETERS]['id'];
+        /** @noinspection SqlNoDataSourceInspection */
+        $sql     = "UPDATE {$this->query[self::TABLE]} SET {$columns} WHERE id = {$id} ;";
+        $pattern = implode('', $this->query[self::TYPES]);
+        $params  = array_filter($this->query[self::PARAMETERS]);
+        $result  = [&$sql, &$pattern, &$params];
+
+        return $result;
+    }
+
+    public function delete()
+    {
+        $where = '';
+        $i     = 0;
+        foreach ($this->query[self::COLUMNS] as $column) {
+            $i++;
+            $where .= " {$column} = ? ";
+            if ($i != count($this->query[self::COLUMNS])) {
+                $where .= ' AND ';
+            }
+        }
+        if (!$where) {
+            $where = ' 1 = 2 ';
+        }
+
+        /** @noinspection SqlNoDataSourceInspection */
+        $sql     = "DELETE FROM {$this->query[self::TABLE]} WHERE {$where}";
+        $pattern = implode('', $this->query[self::TYPES]);
+        $params  = array_filter($this->query[self::PARAMETERS]);
+        $result  = [&$sql, &$pattern, &$params];
+
+        return $result;
+    }
+
+    private function getParamsBindByQuery()
+    {
+        $params = [];
+        $i      = 0;
+        while ($i < count($this->query[self::COLUMNS])) {
+            $params[] = "?";
+            ++$i;
+        }
+
+        return implode(',', $params);
     }
 
     /**
@@ -230,71 +300,5 @@ class MySql implements QueryRuleInterface
             'columnName'      => trim($columnName),
             'compareOperator' => trim($operator)
         ];
-    }
-
-    public function insert()
-    {
-        $columns    = implode(',', $this->query[self::COLUMNS]);
-        $paramsBind = $this->getParamsBindByQuery();
-
-        /** @noinspection SqlNoDataSourceInspection */
-        $sql     = "INSERT INTO {$this->query[self::TABLE]} ({$columns}) VALUES ({$paramsBind})";
-        $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS]);
-        $result  = [&$sql, &$pattern, &$params];
-
-        return $result;
-    }
-
-    public function update()
-    {
-        $columns = implode('= ? ,', $this->query[self::COLUMNS]);
-        if (!empty($columns)) {
-            $columns .= ' = ?';
-        }
-        $id      = empty($this->query[self::PARAMETERS]['id']) ? 0 : $this->query[self::PARAMETERS]['id'];
-        /** @noinspection SqlNoDataSourceInspection */
-        $sql     = "UPDATE {$this->query[self::TABLE]} SET {$columns} WHERE id = {$id} ;";
-        $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS]);
-        $result  = [&$sql, &$pattern, &$params];
-
-        return $result;
-    }
-
-    public function delete()
-    {
-        $where = '';
-        $i     = 0;
-        foreach ($this->query[self::COLUMNS] as $column) {
-            $i++;
-            $where .= " {$column} = ? ";
-            if ($i != count($this->query[self::COLUMNS])) {
-                $where .= ' AND ';
-            }
-        }
-        if (!$where) {
-            $where = ' 1 = 2 ';
-        }
-
-        /** @noinspection SqlNoDataSourceInspection */
-        $sql     = "DELETE FROM {$this->query[self::TABLE]} WHERE {$where}";
-        $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS]);
-        $result  = [&$sql, &$pattern, &$params];
-
-        return $result;
-    }
-
-    private function getParamsBindByQuery()
-    {
-        $params = [];
-        $i      = 0;
-        while ($i < count($this->query[self::COLUMNS])) {
-            $params[] = "?";
-            ++$i;
-        }
-
-        return implode(',', $params);
     }
 }

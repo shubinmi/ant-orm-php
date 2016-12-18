@@ -5,7 +5,7 @@ namespace AntOrm\Storage;
 use AntOrm\Adapters\AdapterInterface;
 use AntOrm\Entity\EntityProperty;
 use AntOrm\Repository\RepositoryInterface;
-use AntOrm\Storage\QueryRules\QueryRuleInterface;
+use AntOrm\Storage\QueryRules\QueryPrepareInterface;
 
 class CoreStorage
 {
@@ -27,7 +27,7 @@ class CoreStorage
     ];
 
     /**
-     * @var QueryRuleInterface
+     * @var QueryPrepareInterface
      */
     private $queryRule;
 
