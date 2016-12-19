@@ -33,7 +33,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
      */
     public function prepare($operation, array $properties)
     {
-        if (!in_array($operation, get_class_methods('CrudDbInterface'))) {
+        if (!in_array($operation, get_class_methods('AntOrm\Storage\QueryRules\CrudDbInterface'))) {
             throw new \Exception('Incorrect $operator value = ' . $operation);
         }
         $query = [self::TABLE => '', self::TYPES => [], self::PARAMETERS => [], self::COLUMNS => []];
