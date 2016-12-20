@@ -74,7 +74,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         $searchSql = new SearchSql($searchParams);
         $sql       = $this->getSqlQuery($searchSql);
         $pattern   = implode('', $this->query[self::TYPES]);
-        $params    = array_filter($this->query[self::PARAMETERS]);
+        $params    = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
         $result    = [&$sql, &$pattern, &$params];
 
         return $result;
@@ -88,7 +88,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql     = "INSERT INTO {$this->query[self::TABLE]} ({$columns}) VALUES ({$paramsBind})";
         $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS]);
+        $params  = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
         $result  = [&$sql, &$pattern, &$params];
 
         return $result;
@@ -104,7 +104,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql     = "UPDATE {$this->query[self::TABLE]} SET {$columns} WHERE id = {$id} ;";
         $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS]);
+        $params  = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
         $result  = [&$sql, &$pattern, &$params];
 
         return $result;
@@ -128,7 +128,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql     = "DELETE FROM {$this->query[self::TABLE]} WHERE {$where}";
         $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS]);
+        $params  = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
         $result  = [&$sql, &$pattern, &$params];
 
         return $result;
