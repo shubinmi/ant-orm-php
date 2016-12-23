@@ -2,7 +2,9 @@
 
 namespace AntOrm\Entity;
 
-abstract class CoreEntity
+use AntOrm\Common\Libraries\Hydrators\ConstructFromArrayOrJson;
+
+abstract class CoreEntity extends ConstructFromArrayOrJson
 {
     /**
      * @var string
@@ -13,23 +15,6 @@ abstract class CoreEntity
      * @var array
      */
     public $antOrmSearchParams;
-
-    /**
-     * @param array|\stdClass $properties
-     */
-    public function __construct($properties = [])
-    {
-        if ($properties instanceof \stdClass) {
-            $properties = (array)$properties;
-        }
-        if (is_array($properties)) {
-            foreach ($properties as $property => $value) {
-                if (property_exists($this, $property)) {
-                    $this->{$property} = $value;
-                }
-            }
-        }
-    }
 
     /**
      * @return array
