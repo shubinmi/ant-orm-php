@@ -5,7 +5,7 @@ namespace AntOrm\Common\Libraries\Hydrators;
 abstract class ConstructFromArrayOrJson
 {
     /**
-     * @param string(json)|array $params
+     * @param string(json)|array|\stdClass $params
      */
     public function __construct($params = null)
     {
