@@ -11,6 +11,8 @@ abstract class ConstructFromArrayOrJson
     {
         if (is_string($params)) {
             $params = json_decode($params, true);
+        } elseif ($params instanceof \stdClass) {
+            $params = (array)$params;
         }
         if (!is_array($params)) {
             return;
