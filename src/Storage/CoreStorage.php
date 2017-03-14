@@ -4,7 +4,6 @@ namespace AntOrm\Storage;
 
 use AntOrm\Adapters\AdapterInterface;
 use AntOrm\Entity\EntityProperty;
-use AntOrm\Repository\RepositoryInterface;
 use AntOrm\Storage\QueryRules\QueryPrepareInterface;
 
 class CoreStorage
@@ -42,9 +41,12 @@ class CoreStorage
         $adapterName = strtolower($adapterName);
         $adapterClass = '\AntOrm\Adapters\\' . ucfirst($adapterName) . 'Adapter';
         try {
+            if (!class_exists($adapterClass)) {
+                throw new \Exception("Incorrect adapter name: {$adapterClass}");
+            }
             $adapter = new $adapterClass($config);
         } catch (\Exception $e) {
-            throw new \Exception("Incorrect adapter name: {$adapterClass}");
+            throw new \Exception("DB error: {$e->getMessage()}");
         }
 
         if (empty($this->mapperAdapterToQueryRule[$adapterName])) {

@@ -74,7 +74,11 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         $searchSql = new SearchSql($searchParams);
         $sql       = $this->getSqlQuery($searchSql);
         $pattern   = implode('', $this->query[self::TYPES]);
-        $params    = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
+        $params    = array_filter(
+            $this->query[self::PARAMETERS], function ($v) {
+            return isset($v);
+        }
+        );
         $result    = [&$sql, &$pattern, &$params];
 
         return $result;
@@ -82,13 +86,20 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
 
     public function insert()
     {
-        $columns    = implode(',', $this->query[self::COLUMNS]);
+        $columns = implode('`,`', $this->query[self::COLUMNS]);
+        if (!empty($columns)) {
+            $columns = '`' . $columns . '`';
+        }
         $paramsBind = $this->getParamsBindByQuery();
 
         /** @noinspection SqlNoDataSourceInspection */
-        $sql     = "INSERT INTO {$this->query[self::TABLE]} ({$columns}) VALUES ({$paramsBind})";
+        $sql     = "INSERT INTO `{$this->query[self::TABLE]}` ({$columns}) VALUES ({$paramsBind})";
         $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
+        $params  = array_filter(
+            $this->query[self::PARAMETERS], function ($v) {
+            return isset($v);
+        }
+        );
         $result  = [&$sql, &$pattern, &$params];
 
         return $result;
@@ -96,15 +107,22 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
 
     public function update()
     {
-        $columns = implode('= ? ,', $this->query[self::COLUMNS]);
+        $columns = implode('` = ? , `', $this->query[self::COLUMNS]);
+        if (!empty($columns)) {
+            $columns = '`' . $columns . '` = ?';
+        }
         if (!empty($columns)) {
             $columns .= ' = ?';
         }
         $id = empty($this->query[self::PARAMETERS]['id']) ? 0 : $this->query[self::PARAMETERS]['id'];
         /** @noinspection SqlNoDataSourceInspection */
-        $sql     = "UPDATE {$this->query[self::TABLE]} SET {$columns} WHERE id = {$id} ;";
+        $sql     = "UPDATE `{$this->query[self::TABLE]}` SET {$columns} WHERE id = {$id} ;";
         $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
+        $params  = array_filter(
+            $this->query[self::PARAMETERS], function ($v) {
+            return isset($v);
+        }
+        );
         $result  = [&$sql, &$pattern, &$params];
 
         return $result;
@@ -116,7 +134,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         $i     = 0;
         foreach ($this->query[self::COLUMNS] as $column) {
             $i++;
-            $where .= " {$column} = ? ";
+            $where .= " `{$column}` = ? ";
             if ($i != count($this->query[self::COLUMNS])) {
                 $where .= ' AND ';
             }
@@ -126,9 +144,13 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         }
 
         /** @noinspection SqlNoDataSourceInspection */
-        $sql     = "DELETE FROM {$this->query[self::TABLE]} WHERE {$where}";
+        $sql     = "DELETE FROM `{$this->query[self::TABLE]}` WHERE {$where}";
         $pattern = implode('', $this->query[self::TYPES]);
-        $params  = array_filter($this->query[self::PARAMETERS], function ($v) {return isset($v);});
+        $params  = array_filter(
+            $this->query[self::PARAMETERS], function ($v) {
+            return isset($v);
+        }
+        );
         $result  = [&$sql, &$pattern, &$params];
 
         return $result;
