@@ -1,6 +1,6 @@
 <?php
 
-namespace AntOrm\Storage\QueryRules\Sql;
+namespace AntOrm\QueryRules\Sql;
 
 class SearchSql
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace AntOrm\Storage\QueryRules;
+namespace AntOrm\QueryRules;
 
 interface CrudDbInterface
 {

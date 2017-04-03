@@ -23,9 +23,18 @@
     "require": {
         "php": ">=5.4"
     },
+    "require-dev": {
+        "ext-mysqlnd": "*",
+        "phpunit/phpunit": "^5.7"
+    },
     "autoload": {
         "psr-4": {
             "AntOrm\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AntOrm\\Tests\\": "tests/"
         }
     }
 }

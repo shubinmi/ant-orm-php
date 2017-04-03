@@ -4,7 +4,7 @@ namespace AntOrm\Entity;
 
 use AntOrm\Common\Libraries\Hydrators\ConstructFromArrayOrJson;
 
-abstract class CoreEntity extends ConstructFromArrayOrJson
+abstract class OrmEntity extends ConstructFromArrayOrJson
 {
     /**
      * @var string
@@ -14,7 +14,7 @@ abstract class CoreEntity extends ConstructFromArrayOrJson
     /**
      * @var array
      */
-    public $antOrmSearchParams;
+    public $antOrmSearchParams = [];
 
     /**
      * @return array

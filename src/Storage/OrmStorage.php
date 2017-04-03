@@ -3,10 +3,10 @@
 namespace AntOrm\Storage;
 
 use AntOrm\Adapters\AdapterInterface;
-use AntOrm\Entity\EntityProperty;
-use AntOrm\Storage\QueryRules\QueryPrepareInterface;
+use AntOrm\Entity\EntityWrapper;
+use AntOrm\QueryRules\QueryPrepareInterface;
 
-class CoreStorage
+class OrmStorage
 {
     /**
      * @var AdapterInterface
@@ -38,7 +38,7 @@ class CoreStorage
      */
     public function __construct($adapterName, array $config)
     {
-        $adapterName = strtolower($adapterName);
+        $adapterName  = strtolower($adapterName);
         $adapterClass = '\AntOrm\Adapters\\' . ucfirst($adapterName) . 'Adapter';
         try {
             if (!class_exists($adapterClass)) {
@@ -53,7 +53,7 @@ class CoreStorage
             throw new \Exception("Has not query rule as: {$adapterName}");
         }
 
-        $queryRuleClass = '\AntOrm\Storage\QueryRules\\' . ucfirst($this->mapperAdapterToQueryRule[$adapterName]);
+        $queryRuleClass = '\AntOrm\QueryRules\\' . ucfirst($this->mapperAdapterToQueryRule[$adapterName]);
 
         $this->queryRule           = new $queryRuleClass();
         $this->adapter             = $adapter;
@@ -61,19 +61,19 @@ class CoreStorage
     }
 
     /**
-     * @param string           $operation
-     * @param EntityProperty[] $properties
+     * @param string        $operation
+     * @param EntityWrapper $wrapper
      *
-     * @return mixed
+     * @return bool
      * @throws \Exception
      */
-    public function query($operation, array $properties)
+    public function query($operation, EntityWrapper $wrapper)
     {
         if (!in_array($operation, $this->availableOperations)) {
             throw new \Exception("Wrong operation: '{$operation}'");
         }
-        $query = $this->queryRule->prepare($operation, $properties);
-        return call_user_func_array([$this->adapter, 'query'], $query);
+        $query = $this->queryRule->prepare($operation, $wrapper);
+        return $this->adapter->query($query);
     }
 
     /**
@@ -82,5 +82,10 @@ class CoreStorage
     public function getAdapter()
     {
         return $this->adapter;
+    }
+
+    public function startTransaction()
+    {
+        $this->adapter;
     }
 }
