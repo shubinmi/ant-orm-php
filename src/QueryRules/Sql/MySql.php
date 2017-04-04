@@ -4,6 +4,7 @@ namespace AntOrm\QueryRules\Sql;
 
 use AntOrm\Entity\EntityWrapper;
 use AntOrm\QueryRules\CrudDbInterface;
+use AntOrm\QueryRules\Helpers\ColumnNameParser;
 use AntOrm\QueryRules\QueryPrepareInterface;
 use AntOrm\QueryRules\QueryStructure;
 
@@ -182,21 +183,21 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     {
         $distinct = $searchSql->distinct ? 'DISTINCT' : '';
         $table    = $this->wrapper->getMetaData()->getTable()->getName();
-        $sql      = 'SELECT ' . $distinct . " * FROM `{$table}`";
+        $sql      = 'SELECT ' . $distinct . " `{$table}`.* FROM `{$table}`";
         if (!empty($searchSql->join)) {
             $sql .= ' ' . $this->getQueryJoin($searchSql) . ' ';
         }
         $sql .= ' WHERE ';
         $sql .= !$searchSql->where ? 1 : $this->getQueryWhere($searchSql->where, $queryStructure);
-        if ($searchSql->groupby) {
-            $sql .= ' GROUP BY ' . $searchSql->groupby;
+        if ($searchSql->groupBy) {
+            $sql .= ' GROUP BY ' . $searchSql->groupBy;
         }
         if ($searchSql->having) {
             $sql .= ' HAVING ' . $searchSql->having;
         }
-        if ($searchSql->orderby) {
-            $searchSql->orderby = str_replace('`', '', $searchSql->orderby);
-            $orders             = array_values(array_filter(explode(',', $searchSql->orderby)));
+        if ($searchSql->orderBy) {
+            $searchSql->orderBy = str_replace('`', '', $searchSql->orderBy);
+            $orders             = array_values(array_filter(explode(',', $searchSql->orderBy)));
             $sql                .= ' ORDER BY ';
             foreach ($orders as $order) {
                 $orderBy  = array_values(array_filter(explode(' ', $order)));
@@ -229,20 +230,27 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     private function getQueryJoin(SearchSql $searchSql)
     {
         $join = '';
-        foreach ($searchSql->join as $joinName => $joinItem) {
-            foreach ($joinItem as $joinItemValue) {
-                $join .= " {$joinName} ";
-                if (is_string($joinItemValue)) {
-                    $join .= " {$joinItemValue} ";
+        foreach ($searchSql->join as $joinOperator => $joinConditions) {
+            if (is_string($joinConditions)) {
+                $join .= " {$joinOperator} " . $joinConditions . ' ';
+                continue;
+            }
+            if (!is_array($joinConditions)) {
+                continue;
+            }
+            foreach ($joinConditions as $joinCondition) {
+                $join .= " {$joinOperator} ";
+                if (is_string($joinCondition)) {
+                    $join .= " {$joinCondition} ";
                     continue;
                 }
-                if (is_array($joinItemValue)) {
+                if (is_array($joinCondition)) {
                     $table = $on = '';
-                    foreach ($joinItemValue as $joinItemValueKey => $joinItemValueString) {
-                        if (strtolower($joinItemValueKey) == 'table') {
-                            $table = $joinItemValueString;
-                        } elseif (strtolower($joinItemValueKey) == 'on') {
-                            $on = $joinItemValueString;
+                    foreach ($joinCondition as $joinConditionKey => $joinConditionValue) {
+                        if (strtolower($joinConditionKey) == 'table') {
+                            $table = $joinConditionValue;
+                        } elseif (strtolower($joinConditionKey) == 'on') {
+                            $on = $joinConditionValue;
                         }
                     }
                     if ($table && $on) {
@@ -259,37 +267,26 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     /**
      * @param array          $whereParams
      * @param QueryStructure $queryStructure
+     * @param string         $logicOperator
      *
      * @return string
      */
-    private function getQueryWhere(array $whereParams, QueryStructure &$queryStructure)
+    private function getQueryWhere(array $whereParams, QueryStructure &$queryStructure, $logicOperator = 'AND')
     {
         $sql              = '';
         $iterateNumber    = 0;
         $countWhereParams = count($whereParams);
-        foreach ($whereParams as $operator => $params) {
+        foreach ($whereParams as $key => $param) {
             $iterateNumber++;
-            if (is_array($params)) {
-                $sql .= ' ( ';
-                $i   = 0;
-                foreach ($params as $key => $value) {
-                    ++$i;
-                    if (is_array($value)) {
-                        $sql .= $this->getQueryWhere($value, $queryStructure);
-                    } else {
-                        $sql .= $this->getPartOfCondition($key, $value, $queryStructure);
-                    }
-                    if ($i < count($params)) {
-                        $sql .= ' ' . $operator . ' ';
-                    }
-                }
-                $sql .= ' ) ';
-                continue;
+            if (in_array(strtolower($key), ['or', 'and']) && is_array($param)) {
+                $sql .= ' ( ' . $this->getQueryWhere($param, $queryStructure, $key) . ' ) ';
+            } elseif (is_array($param)) {
+                $sql .= ' ( ' . $this->getQueryWhere($param, $queryStructure, $logicOperator) . ' ) ';
+            } else {
+                $sql .= $this->getPartOfCondition($key, $param, $queryStructure);
             }
-
-            $sql .= $this->getPartOfCondition($operator, $params, $queryStructure);
             if ($iterateNumber < $countWhereParams) {
-                $sql .= ' AND ';
+                $sql .= ' ' . $logicOperator . ' ';
             }
         }
 
@@ -310,10 +307,12 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         }
         $columnName          = $conditionParts['columnName'];
         $operator            = $conditionParts['compareOperator'];
-        $escapedColumnName   = '`' . implode('`.`', explode('.', $columnName)) . '`';
+        $escapedColumnName   = ColumnNameParser::getEscaped(
+            $columnName, $this->wrapper->getMetaData()->getTable()->getName()
+        );
         $comparisonOperators = ['in', 'is', 'is not', 'not in', 'strcmp', 'interval', 'least', 'not between'];
         if (in_array(strtolower($operator), $comparisonOperators)) {
-            return " {$escapedColumnName} {$operator} '{$columnValue}' ";
+            return " {$escapedColumnName} {$operator} {$columnValue} ";
         }
         $properties = $this->wrapper->getPreparedProperties();
         if (empty($properties[$columnName])) {

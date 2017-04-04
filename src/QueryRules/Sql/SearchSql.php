@@ -22,7 +22,7 @@ class SearchSql
     /**
      * @var string
      */
-    public $groupby;
+    public $groupBy;
 
     /**
      * @var string
@@ -32,7 +32,7 @@ class SearchSql
     /**
      * @var string
      */
-    public $orderby;
+    public $orderBy;
 
     /**
      * @var string
@@ -57,6 +57,7 @@ class SearchSql
                 }
                 $searchProperty = str_replace([' ', '-', '_'], '', $property);
                 $searchProperty = strtolower($searchProperty);
+                $searchProperty = str_replace('by', 'By', $searchProperty);
                 if (property_exists($this, $searchProperty)) {
                     $this->{$searchProperty} = $value;
                     unset($params[$property]);
@@ -70,7 +71,7 @@ class SearchSql
 
     /**
      * @param string $key
-     * @param array $value
+     * @param array  $value
      *
      * @return bool
      */
@@ -79,6 +80,7 @@ class SearchSql
         if (strripos($key, 'join') === false) {
             return false;
         }
+        $key              = str_replace(['-', '_'], ' ', $key);
         $this->join[$key] = $value;
 
         return true;

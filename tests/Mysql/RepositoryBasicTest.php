@@ -6,7 +6,7 @@ use AntOrm\Repository\OrmRepository;
 use AntOrm\Storage\OrmStorage;
 use PHPUnit\Framework\TestCase;
 
-class RepositoryTest extends TestCase
+class RepositoryBasicTest extends TestCase
 {
     /**
      * @return OrmRepository
@@ -67,6 +67,7 @@ class RepositoryTest extends TestCase
         $this->assertEquals(true, $updated);
         $countUsers = count($repo->find(['id' => $user->id, 'status' => $newStatus]));
         $this->assertEquals(1, $countUsers);
+        $this->assertEquals($repo->count(), $countUsers);
 
         return $repo;
     }
