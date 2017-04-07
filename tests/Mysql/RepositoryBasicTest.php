@@ -15,7 +15,7 @@ class RepositoryBasicTest extends TestCase
     {
         /** @var OrmStorage $storage */
         global $storage;
-        $repo  = new OrmRepository($storage, UserEntity::className());
+        $repo  = new OrmRepository(clone $storage, UserEntity::className());
         $users = $repo->find();
         $this->assertContainsOnlyInstancesOf(UserEntity::class, $users);
         $users = $repo->find(['id' => 1]);

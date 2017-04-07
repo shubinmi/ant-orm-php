@@ -15,7 +15,7 @@ class RepositorySelectTest extends TestCase
     {
         /** @var OrmStorage $storage */
         global $storage;
-        $repo     = new OrmRepository($storage);
+        $repo     = new OrmRepository(clone $storage);
         $selected = $repo->select(
             UserEntity::className(),
             [
