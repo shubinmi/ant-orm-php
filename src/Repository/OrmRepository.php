@@ -33,6 +33,11 @@ class OrmRepository implements RepositoryInterface
         $this->init();
     }
 
+    function __clone()
+    {
+        $this->storage = clone $this->storage;
+    }
+
     protected function init()
     {
     }
@@ -103,6 +108,22 @@ class OrmRepository implements RepositoryInterface
     public function delete($entity)
     {
         return $this->query('delete', $entity);
+    }
+
+    /**
+     * @return bool
+     */
+    public function startTransaction()
+    {
+        return $this->storage->startTransaction();
+    }
+
+    /**
+     * @return bool
+     */
+    public function endTransaction()
+    {
+        return $this->storage->endTransactions();
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace AntOrm\Adapters;
 
 use AntOrm\QueryRules\QueryStructure;
+use AntOrm\QueryRules\TransactionQueryList;
 
 interface AdapterInterface
 {
@@ -12,7 +13,7 @@ interface AdapterInterface
     public function __construct(array $config);
 
     /**
-     * @param QueryStructure|string $query
+     * @param QueryStructure|string|TransactionQueryList $query
      *
      * @return bool
      */

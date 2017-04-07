@@ -30,6 +30,12 @@ class OrmStorage
      */
     private $queryRule;
 
+    public function __clone()
+    {
+        $this->adapter   = clone $this->adapter;
+        $this->queryRule = clone $this->queryRule;
+    }
+
     /**
      * @param string $adapterName
      * @param array  $config
@@ -84,8 +90,19 @@ class OrmStorage
         return $this->adapter;
     }
 
+    /**
+     * @return bool
+     */
     public function startTransaction()
     {
-        $this->adapter;
+        return $this->adapter->startTransaction();
+    }
+
+    /**
+     * @return bool
+     */
+    public function endTransactions()
+    {
+        return $this->adapter->endTransaction();
     }
 }

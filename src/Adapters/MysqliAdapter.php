@@ -3,6 +3,7 @@
 namespace AntOrm\Adapters;
 
 use AntOrm\QueryRules\QueryStructure;
+use AntOrm\QueryRules\TransactionQueryList;
 
 class MysqliAdapter implements AdapterInterface
 {
@@ -32,6 +33,11 @@ class MysqliAdapter implements AdapterInterface
     private $onTransaction = false;
 
     /**
+     * @var bool
+     */
+    private $transactionWaitingCommit = false;
+
+    /**
      * MysqliAdapter constructor.
      *
      * @param array $config
@@ -46,6 +52,7 @@ class MysqliAdapter implements AdapterInterface
             throw new \Exception("Can't connect to db:\n" . mysqli_connect_error());
         }
         $this->adapter->set_charset("utf8");
+        $this->adapter->autocommit(true);
     }
 
     public function __destruct()
@@ -68,17 +75,12 @@ class MysqliAdapter implements AdapterInterface
      */
     public function endTransaction()
     {
-        $transaction    = new QueryStructure();
-        $transactionSql = 'start transaction;';
+        $transaction = new TransactionQueryList();
+        $transaction->addQuery((new QueryStructure())->setQuery('start transaction'));
         foreach ($this->queries as $query) {
-            $transactionSql .= $query->getQuery() . ';';
-            $bindPatterns   = array_merge($transaction->getBindPatterns(), $query->getBindPatterns());
-            $bindParams     = array_merge($transaction->getBindParams(), $query->getBindParams());
-            $transaction->setBindParams($bindParams);
-            $transaction->setBindPatterns($bindPatterns);
+            $transaction->addQuery($query);
         }
-        $transactionSql .= 'commit;';
-        $transaction->setQuery($transactionSql);
+        $transaction->addQuery((new QueryStructure())->setQuery('commit'));
         $this->onTransaction = false;
 
         return $this->query($transaction);
@@ -93,7 +95,7 @@ class MysqliAdapter implements AdapterInterface
     }
 
     /**
-     * @param QueryStructure|string $query
+     * @param QueryStructure|string|TransactionQueryList $query
      *
      * @return bool
      * @throws \Exception
@@ -104,24 +106,62 @@ class MysqliAdapter implements AdapterInterface
             $sql   = $query;
             $query = (new QueryStructure)->setQuery($sql);
         }
-        if (!$query instanceof QueryStructure) {
-            throw new \InvalidArgumentException('$query param must be string or QueryStructure');
+        if (!$query instanceof QueryStructure && !$query instanceof TransactionQueryList) {
+            throw new \InvalidArgumentException(
+                '$query param must be string or QueryStructure or TransactionQueryList.'
+            );
         }
         if ($this->onTransaction) {
             $this->queries[] = $query;
             return true;
         }
-        $queryParts     = explode(';', $query->getQuery());
-        $queryParts     = array_filter($queryParts);
-        $this->stmt     = [];
-        $haveToBeCommit = false;
+        $this->stmt = [];
+
+        if ($query instanceof TransactionQueryList) {
+            /** @var TransactionQueryList $query */
+            foreach ($query->getQueries() as $q) {
+                $this->prepareQuery($q);
+            }
+        } elseif ($query instanceof QueryStructure) {
+            $this->prepareQuery($query);
+        }
+        foreach ($this->stmt as $stmt) {
+            if ($stmt->execute() === false) {
+                if ($this->transactionWaitingCommit) {
+                    $this->rollbackTransactions();
+                }
+                throw new \Exception('Query failed: ' . $this->adapter->error);
+            }
+        }
+        if ($this->transactionWaitingCommit) {
+            $this->transactionWaitingCommit = false;
+            if (!$this->adapter->commit()) {
+                throw new \Exception('Transaction failed: ' . $this->adapter->error);
+            }
+            $this->adapter->autocommit(true);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param QueryStructure $query
+     *
+     * @throws \Exception
+     */
+    private function prepareQuery(QueryStructure $query)
+    {
+        $queryParts = explode(';', $query->getQuery());
+        $queryParts = array_filter($queryParts);
+
         foreach ($queryParts as $sql) {
             $tempSql = strtolower(str_replace(' ', '', $sql));
             if ($tempSql == 'commit') {
-                $haveToBeCommit = true;
+                $this->transactionWaitingCommit = true;
                 continue;
             }
             if ($tempSql == 'starttransaction') {
+                $this->transactionWaitingCommit = true;
                 $this->adapter->autocommit(false);
                 continue;
             }
@@ -129,37 +169,23 @@ class MysqliAdapter implements AdapterInterface
             if ($stmt === false) {
                 throw new \Exception('Incorrect sql for mysqli::prepare : ' . $sql);
             }
+            if (!empty($query->getBindParams())) {
+                $params = array_merge(
+                    [implode('', $query->getBindPatterns())],
+                    $query->getBindParams()
+                );
+                call_user_func_array(
+                    [$stmt, 'bind_param'],
+                    array_map(
+                        function &(&$value) {
+                            return $value;
+                        },
+                        $params
+                    )
+                );
+            }
             $this->stmt[] = $stmt;
         }
-        if (!empty($query->getBindParams())) {
-            $params = array_merge(
-                [implode('', $query->getBindPatterns())],
-                $query->getBindParams()
-            );
-            call_user_func_array(
-                [$this->stmt[count($this->stmt) - 1], 'bind_param'],
-                array_map(
-                    function &(&$value) {
-                        return $value;
-                    },
-                    $params
-                )
-            );
-        }
-        foreach ($this->stmt as $stmt) {
-            if ($stmt->execute() === false) {
-                if ($haveToBeCommit) {
-                    $this->rollbackTransactions();
-                }
-                throw new \Exception('Query failed: ' . $this->adapter->error);
-            }
-        }
-        if ($haveToBeCommit) {
-            $this->adapter->commit();
-        }
-        $this->adapter->autocommit(true);
-
-        return true;
     }
 
     /**
@@ -169,8 +195,7 @@ class MysqliAdapter implements AdapterInterface
     {
         $this->result = [];
         $result       = $this->stmt[count($this->stmt) - 1]->get_result();
-        if (!$result) {
-            $result->close();
+        if (!$result instanceof \mysqli_result) {
             return [];
         }
 
