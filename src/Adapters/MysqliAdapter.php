@@ -38,6 +38,11 @@ class MysqliAdapter implements AdapterInterface
     private $transactionWaitingCommit = false;
 
     /**
+     * @var \stdClass
+     */
+    private $config;
+
+    /**
      * MysqliAdapter constructor.
      *
      * @param array $config
@@ -47,12 +52,19 @@ class MysqliAdapter implements AdapterInterface
     public function __construct(array $config)
     {
         $config        = (object)$config;
+        $this->config  = $config;
         $this->adapter = new \mysqli($config->host, $config->user, $config->pass, $config->db);
         if (mysqli_connect_errno()) {
             throw new \Exception("Can't connect to db:\n" . mysqli_connect_error());
         }
         $this->adapter->set_charset("utf8");
         $this->adapter->autocommit(true);
+    }
+
+    function __clone()
+    {
+        $this->adapter = new \mysqli($this->config->host, $this->config->user, $this->config->pass, $this->config->db);
+        $this->stmt    = [];
     }
 
     public function __destruct()
@@ -115,7 +127,8 @@ class MysqliAdapter implements AdapterInterface
             $this->queries[] = $query;
             return true;
         }
-        $this->stmt = [];
+        $this->queries = [];
+        $this->stmt    = [];
 
         if ($query instanceof TransactionQueryList) {
             /** @var TransactionQueryList $query */
@@ -126,16 +139,20 @@ class MysqliAdapter implements AdapterInterface
             $this->prepareQuery($query);
         }
         foreach ($this->stmt as $stmt) {
-            if ($stmt->execute() === false) {
+            if (!$stmt->execute()) {
                 if ($this->transactionWaitingCommit) {
+                    $this->transactionWaitingCommit = false;
                     $this->rollbackTransactions();
                 }
-                throw new \Exception('Query failed: ' . $this->adapter->error);
+                throw new \Exception('Query error: ' . $stmt->error);
             }
         }
         if ($this->transactionWaitingCommit) {
             $this->transactionWaitingCommit = false;
             if (!$this->adapter->commit()) {
+                if ($this->transactionWaitingCommit) {
+                    $this->rollbackTransactions();
+                }
                 throw new \Exception('Transaction failed: ' . $this->adapter->error);
             }
             $this->adapter->autocommit(true);
@@ -161,11 +178,14 @@ class MysqliAdapter implements AdapterInterface
                 continue;
             }
             if ($tempSql == 'starttransaction') {
-                $this->transactionWaitingCommit = true;
                 $this->adapter->autocommit(false);
                 continue;
             }
-            $stmt = $this->adapter->prepare($sql);
+            try {
+                $stmt = $this->adapter->prepare($sql);
+            } catch (\Exception $e) {
+                throw new \Exception('Error on mysqli::prepare for : ' . $sql . ' ; ' . $e->getMessage());
+            }
             if ($stmt === false) {
                 throw new \Exception('Incorrect sql for mysqli::prepare : ' . $sql);
             }
@@ -232,7 +252,15 @@ class MysqliAdapter implements AdapterInterface
      */
     public function getLastInsertId()
     {
-        return $this->stmt[count($this->stmt) - 1]->insert_id;
+        $i = count($this->stmt);
+        while ($i > 0) {
+            --$i;
+            if ($this->stmt[$i]->insert_id > 0) {
+                return $this->stmt[$i]->insert_id;
+            }
+        }
+
+        return 0;
     }
 
     /**
@@ -248,10 +276,14 @@ class MysqliAdapter implements AdapterInterface
         try {
             if (!empty($this->stmt)) {
                 foreach ($this->stmt as $stmt) {
-                    $stmt->close();
+                    if ($stmt instanceof \mysqli_stmt) {
+                        @$stmt->close();
+                    }
                 }
             }
-            @$this->adapter->close();
+            if ($this->adapter instanceof \mysqli) {
+                @$this->adapter->close();
+            }
         } catch (\Exception $e) {
         }
     }
