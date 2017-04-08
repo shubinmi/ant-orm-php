@@ -2,13 +2,36 @@
 
 namespace AntOrm\Entity\Helpers;
 
-use AntOrm\Entity\OrmEntity;
+use AntOrm\Entity\EntityMetaData;
 use AntOrm\Entity\EntityProperty;
+use AntOrm\Entity\EntityWrapper;
 use AntOrm\Entity\Objects\OrmProperty;
 use AntOrm\Entity\Objects\OrmTable;
+use AntOrm\Entity\OrmEntity;
 
 class EntityPrepareHelper
 {
+    /**
+     * @param OrmEntity $entity
+     *
+     * @return EntityWrapper
+     */
+    public static function getWrapper(OrmEntity $entity)
+    {
+        $preparedProperties = EntityPrepareHelper::getEntityProperties($entity);
+        $propertiesMetaData = EntityPrepareHelper::getPropertiesMeta($preparedProperties);
+        $metaData           = new EntityMetaData();
+        $metaData
+            ->setTable(EntityPrepareHelper::getTableMeta($entity, $propertiesMetaData))
+            ->setColumns($propertiesMetaData);
+        $wrapper = new EntityWrapper();
+        $wrapper->setEntity($entity)
+            ->setPreparedProperties($preparedProperties)
+            ->setMetaData($metaData);
+
+        return $wrapper;
+    }
+
     /**
      * @param OrmEntity $entity
      *
@@ -19,8 +42,7 @@ class EntityPrepareHelper
         $reflect    = new \ReflectionClass($entity);
         $properties = $reflect->getProperties(
             \ReflectionProperty::IS_PUBLIC |
-            \ReflectionProperty::IS_PROTECTED |
-            \ReflectionProperty::IS_PRIVATE
+            \ReflectionProperty::IS_PROTECTED
         );
 
         $result = [];
@@ -41,10 +63,10 @@ class EntityPrepareHelper
      *
      * @return OrmProperty[]
      */
-    public static function getPropertiesMeta(array $preparedProperties)
+    public static function getPropertiesMeta(array &$preparedProperties)
     {
         $propertiesMeta = [];
-        foreach ($preparedProperties as $preparedProperty) {
+        foreach ($preparedProperties as &$preparedProperty) {
             if (!$propertyMeta = ParseDocHelper::getOrmPropertyByDoc($preparedProperty->doc)) {
                 $propertyMeta = new OrmProperty();
             }
@@ -55,6 +77,7 @@ class EntityPrepareHelper
                 );
             }
             $propertiesMeta[$propertyMeta->getName()] = $propertyMeta;
+            $preparedProperty->metaData               = $propertyMeta;
         }
 
         return $propertiesMeta;

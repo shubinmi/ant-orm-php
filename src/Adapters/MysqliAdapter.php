@@ -2,6 +2,7 @@
 
 namespace AntOrm\Adapters;
 
+use AntOrm\Adapters\Objects\MysqliConfig;
 use AntOrm\QueryRules\QueryStructure;
 use AntOrm\QueryRules\TransactionQueryList;
 
@@ -38,20 +39,24 @@ class MysqliAdapter implements AdapterInterface
     private $transactionWaitingCommit = false;
 
     /**
-     * @var \stdClass
+     * @var MysqliConfig
      */
     private $config;
 
     /**
      * MysqliAdapter constructor.
      *
-     * @param array $config
+     * @param array|MysqliConfig $config
      *
      * @throws \Exception
      */
-    public function __construct(array $config)
+    public function __construct($config)
     {
-        $config        = (object)$config;
+        if (is_array($config)) {
+            $config = new MysqliConfig($config);
+        } elseif (!$config instanceof MysqliConfig) {
+            throw new \Exception('Config of mysqli storage must be array or object of MysqliConfig class');
+        }
         $this->config  = $config;
         $this->adapter = new \mysqli($config->host, $config->user, $config->pass, $config->db);
         if (mysqli_connect_errno()) {

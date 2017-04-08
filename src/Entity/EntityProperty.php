@@ -3,6 +3,7 @@
 namespace AntOrm\Entity;
 
 use AntOrm\Entity\Helpers\ParseDocHelper;
+use AntOrm\Entity\Objects\OrmProperty;
 
 class EntityProperty
 {
@@ -11,9 +12,25 @@ class EntityProperty
     const BIND_TYPE_DOUBLE  = 'd';
     const BIND_TYPE_BLOB    = 'b';
 
+    /**
+     * @var string
+     */
     public $name = '';
+
+    /**
+     * @var string
+     */
     public $value = '';
+
+    /**
+     * @var string
+     */
     public $doc = '';
+
+    /**
+     * @var OrmProperty
+     */
+    public $metaData;
 
     /**
      * @param string $name
@@ -22,15 +39,16 @@ class EntityProperty
      */
     public function __construct($name, $value, $doc)
     {
-        $this->name  = $name;
-        $this->value = $value;
-        $this->doc   = $doc;
+        $this->name     = $name;
+        $this->value    = $value;
+        $this->doc      = $doc;
+        $this->metaData = new OrmProperty();
     }
 
     /**
      * @return string
      */
-    public function getTypePatternByDoc()
+    public function getBindTypePattern()
     {
         if (empty($this->doc)) {
             return self::BIND_TYPE_STRING;

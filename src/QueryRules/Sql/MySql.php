@@ -61,7 +61,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         foreach ($properties as $property) {
             if (isset($property->value)) {
                 $query->addBindParam($property->value);
-                $query->addBindPattern($property->getTypePatternByDoc());
+                $query->addBindPattern($property->getBindTypePattern());
                 $queryValues[]  = '?';
                 $queryColumns[] = $property->name;
             }
@@ -98,7 +98,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
                     if (strpos($property->name, 'id') !== false) {
                         $where               .= "`{$property->name}` = ?";
                         $whereBindParams[]   = $property->value;
-                        $whereBindPatterns[] = $property->getTypePatternByDoc();
+                        $whereBindPatterns[] = $property->getBindTypePattern();
                         continue;
                     }
                 }
@@ -108,7 +108,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
                     }
                     $where               .= "`{$property->name}` = ?";
                     $whereBindParams[]   = $property->value;
-                    $whereBindPatterns[] = $property->getTypePatternByDoc();
+                    $whereBindPatterns[] = $property->getBindTypePattern();
                     continue;
                 }
                 if (!empty($queryColumns)) {
@@ -116,7 +116,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
                 }
                 $queryColumns .= "`{$property->name}` = ?";
                 $query->addBindParam($property->value);
-                $query->addBindPattern($property->getTypePatternByDoc());
+                $query->addBindPattern($property->getBindTypePattern());
             }
         }
         if (!$where) {
@@ -149,7 +149,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
                     if (strpos($property->name, 'id') !== false) {
                         $where .= "`$property->name` = ?";
                         $query->addBindParam($property->value);
-                        $query->addBindPattern($property->getTypePatternByDoc());
+                        $query->addBindPattern($property->getBindTypePattern());
                     }
                 }
                 if ($declaredPrimaryColumns && in_array(trim($property->name), $primaryColumns)) {
@@ -158,7 +158,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
                     }
                     $where .= "`$property->name` = ?";
                     $query->addBindParam($property->value);
-                    $query->addBindPattern($property->getTypePatternByDoc());
+                    $query->addBindPattern($property->getBindTypePattern());
                 }
             }
         }
@@ -318,7 +318,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
         if (empty($properties[$columnName])) {
             return " $escapedColumnName {$operator} '{$columnValue}' ";
         }
-        $queryStructure->addBindPattern($properties[$columnName]->getTypePatternByDoc());
+        $queryStructure->addBindPattern($properties[$columnName]->getBindTypePattern());
         $queryStructure->addBindParam($columnValue);
 
         return " $escapedColumnName {$operator} ? ";

@@ -3,6 +3,7 @@
 namespace AntOrm\Storage;
 
 use AntOrm\Adapters\AdapterInterface;
+use AntOrm\Adapters\Objects\StorageConfig;
 use AntOrm\Entity\EntityWrapper;
 use AntOrm\QueryRules\QueryPrepareInterface;
 
@@ -37,12 +38,12 @@ class OrmStorage
     }
 
     /**
-     * @param string $adapterName
-     * @param array  $config
+     * @param string              $adapterName
+     * @param array|StorageConfig $config
      *
      * @throws \Exception
      */
-    public function __construct($adapterName, array $config)
+    public function __construct($adapterName, $config)
     {
         $adapterName  = strtolower($adapterName);
         $adapterClass = '\AntOrm\Adapters\\' . ucfirst($adapterName) . 'Adapter';

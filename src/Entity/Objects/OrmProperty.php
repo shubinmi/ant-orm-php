@@ -22,6 +22,11 @@ class OrmProperty extends ConstructFromArrayOrJson
     protected $column;
 
     /**
+     * @var OrmRelation
+     */
+    protected $related;
+
+    /**
      * @var bool
      */
     protected $primary = false;
@@ -99,6 +104,30 @@ class OrmProperty extends ConstructFromArrayOrJson
     public function setName($name)
     {
         $this->name = $name;
+        return $this;
+    }
+
+    /**
+     * @return OrmRelation
+     */
+    public function getRelated()
+    {
+        return $this->related;
+    }
+
+    /**
+     * @param array|OrmRelation $related
+     *
+     * @return $this
+     */
+    public function setRelated($related)
+    {
+        if (is_array($related)) {
+            $this->related = new OrmRelation($related);
+        } elseif ($related instanceof OrmRelation) {
+            $this->related = $related;
+        }
+
         return $this;
     }
 }

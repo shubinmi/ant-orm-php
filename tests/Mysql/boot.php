@@ -57,4 +57,40 @@ class UserEntity extends OrmEntity
      * @var int
      */
     public $status;
+
+    /**
+     * @var ProfileEntity
+     * @orm{"related":{"with":"ProfileEntity", "as":"hasOne", "onMyColumn":"id", "onHisColumn":"user_id"}}
+     */
+    public $profile;
+}
+
+/**
+ * @orm{"table":"profiles"}
+ */
+class ProfileEntity extends OrmEntity
+{
+    /**
+     * @var int
+     * @orm{"primary":true}
+     */
+    public $id;
+
+    /**
+     * @var int
+     * @orm{"type":"INTEGER", "column":"user_id"}
+     */
+    public $userId;
+
+    /**
+     * @var string
+     * @orm{"column":"first_name"}
+     */
+    public $firstName;
+
+    /**
+     * @var string
+     * @orm{"column":"last_name"}
+     */
+    public $lastName;
 }

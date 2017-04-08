@@ -2,10 +2,8 @@
 
 namespace AntOrm\Repository;
 
-use AntOrm\Entity\OrmEntity;
-use AntOrm\Entity\EntityMetaData;
-use AntOrm\Entity\EntityWrapper;
 use AntOrm\Entity\Helpers\EntityPrepareHelper;
+use AntOrm\Entity\OrmEntity;
 use AntOrm\Storage\OrmStorage;
 
 class OrmRepository implements RepositoryInterface
@@ -175,17 +173,7 @@ class OrmRepository implements RepositoryInterface
      */
     protected function query($operation, OrmEntity $entity)
     {
-        $preparedProperties = EntityPrepareHelper::getEntityProperties($entity);
-        $propertiesMetaData = EntityPrepareHelper::getPropertiesMeta($preparedProperties);
-        $metaData           = new EntityMetaData();
-        $metaData
-            ->setTable(EntityPrepareHelper::getTableMeta($entity, $propertiesMetaData))
-            ->setColumns($propertiesMetaData);
-        $wrapper = new EntityWrapper();
-        $wrapper->setEntity($entity)
-            ->setPreparedProperties($preparedProperties)
-            ->setMetaData($metaData);
-
+        $wrapper = EntityPrepareHelper::getWrapper($entity);
         return $this->storage->query($operation, $wrapper);
     }
 }

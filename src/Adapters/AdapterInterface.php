@@ -2,15 +2,16 @@
 
 namespace AntOrm\Adapters;
 
+use AntOrm\Adapters\Objects\StorageConfig;
 use AntOrm\QueryRules\QueryStructure;
 use AntOrm\QueryRules\TransactionQueryList;
 
 interface AdapterInterface
 {
     /**
-     * @param array $config
+     * @param array|StorageConfig $config
      */
-    public function __construct(array $config);
+    public function __construct($config);
 
     /**
      * @param QueryStructure|string|TransactionQueryList $query
