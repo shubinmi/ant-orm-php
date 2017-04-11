@@ -3,7 +3,9 @@
 namespace AntOrm\Adapters;
 
 use AntOrm\Adapters\Objects\MysqliConfig;
+use AntOrm\Entity\EntityWrapper;
 use AntOrm\QueryRules\QueryStructure;
+use AntOrm\QueryRules\Sql\MySql;
 use AntOrm\QueryRules\TransactionQueryList;
 
 class MysqliAdapter implements AdapterInterface
@@ -44,6 +46,11 @@ class MysqliAdapter implements AdapterInterface
     private $config;
 
     /**
+     * @var MySql
+     */
+    private $sqlGenerator;
+
+    /**
      * MysqliAdapter constructor.
      *
      * @param array|MysqliConfig $config
@@ -64,6 +71,7 @@ class MysqliAdapter implements AdapterInterface
         }
         $this->adapter->set_charset("utf8");
         $this->adapter->autocommit(true);
+        $this->sqlGenerator = new MySql();
     }
 
     function __clone()
@@ -164,6 +172,50 @@ class MysqliAdapter implements AdapterInterface
         }
 
         return true;
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function select(EntityWrapper $wrapper)
+    {
+        $query = $this->sqlGenerator->select($wrapper);
+        return $this->query($query);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function insert(EntityWrapper $wrapper)
+    {
+        $query = $this->sqlGenerator->insert($wrapper);
+        return $this->query($query);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function update(EntityWrapper $wrapper)
+    {
+        $query = $this->sqlGenerator->update($wrapper);
+        return $this->query($query);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function delete(EntityWrapper $wrapper)
+    {
+        $query = $this->sqlGenerator->delete($wrapper);
+        return $this->query($query);
     }
 
     /**

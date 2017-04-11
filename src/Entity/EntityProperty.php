@@ -2,7 +2,7 @@
 
 namespace AntOrm\Entity;
 
-use AntOrm\Entity\Helpers\ParseDocHelper;
+use AntOrm\Entity\Helpers\AnnotationParser;
 use AntOrm\Entity\Objects\OrmProperty;
 
 class EntityProperty
@@ -33,6 +33,11 @@ class EntityProperty
     public $metaData;
 
     /**
+     * @var EntityWrapper
+     */
+    public $linkedWrapper;
+
+    /**
      * @param string $name
      * @param string $value
      * @param string $doc
@@ -54,10 +59,10 @@ class EntityProperty
             return self::BIND_TYPE_STRING;
         }
         $doc = strtolower(str_replace([' ', "\r\n", "\n", "\r"], '', $this->doc));
-        if ($ormDoc = ParseDocHelper::getBindTypeByOrmAnnotation($doc)) {
+        if ($ormDoc = AnnotationParser::getBindTypeByOrmAnnotation($doc)) {
             return $ormDoc;
         }
-        if ($varDoc = ParseDocHelper::getBindTypeByVarDoc($doc)) {
+        if ($varDoc = AnnotationParser::getBindTypeByVarDoc($doc)) {
             return $varDoc;
         }
 

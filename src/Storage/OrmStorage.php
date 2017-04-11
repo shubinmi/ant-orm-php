@@ -3,11 +3,15 @@
 namespace AntOrm\Storage;
 
 use AntOrm\Adapters\AdapterInterface;
+use AntOrm\Adapters\MysqliAdapter;
 use AntOrm\Adapters\Objects\StorageConfig;
 use AntOrm\Entity\EntityWrapper;
-use AntOrm\QueryRules\QueryPrepareInterface;
+use AntOrm\Entity\Helpers\EntityPreparer;
+use AntOrm\Entity\Helpers\WrappersLinking;
+use AntOrm\Entity\OrmEntity;
+use AntOrm\QueryRules\CrudDbInterface;
 
-class OrmStorage
+class OrmStorage implements CrudDbInterface
 {
     /**
      * @var AdapterInterface
@@ -22,19 +26,13 @@ class OrmStorage
     /**
      * @var array
      */
-    private $mapperAdapterToQueryRule = [
-        'mysqli' => 'Sql\MySql'
+    private $mapOfAdapters = [
+        'mysqli' => MysqliAdapter::class
     ];
-
-    /**
-     * @var QueryPrepareInterface
-     */
-    private $queryRule;
 
     public function __clone()
     {
-        $this->adapter   = clone $this->adapter;
-        $this->queryRule = clone $this->queryRule;
+        $this->adapter = clone $this->adapter;
     }
 
     /**
@@ -45,26 +43,18 @@ class OrmStorage
      */
     public function __construct($adapterName, $config)
     {
-        $adapterName  = strtolower($adapterName);
-        $adapterClass = '\AntOrm\Adapters\\' . ucfirst($adapterName) . 'Adapter';
+        $adapterName = strtolower($adapterName);
         try {
-            if (!class_exists($adapterClass)) {
-                throw new \Exception("Incorrect adapter name: {$adapterClass}");
+            if (empty($this->mapOfAdapters[$adapterName])) {
+                throw new \Exception("Incorrect adapter name: {$adapterName}");
             }
-            $adapter = new $adapterClass($config);
+            $adapterClass = '\\' . $this->mapOfAdapters[$adapterName];
+            $adapter      = new $adapterClass($config);
         } catch (\Exception $e) {
-            throw new \Exception("DB error: {$e->getMessage()}");
+            throw new \Exception("Storage adapter Class error: {$e->getMessage()}");
         }
-
-        if (empty($this->mapperAdapterToQueryRule[$adapterName])) {
-            throw new \Exception("Has not query rule as: {$adapterName}");
-        }
-
-        $queryRuleClass = '\AntOrm\QueryRules\\' . ucfirst($this->mapperAdapterToQueryRule[$adapterName]);
-
-        $this->queryRule           = new $queryRuleClass();
         $this->adapter             = $adapter;
-        $this->availableOperations = get_class_methods('AntOrm\Repository\RepositoryInterface');
+        $this->availableOperations = get_class_methods('AntOrm\QueryRules\CrudDbInterface');
     }
 
     /**
@@ -79,8 +69,99 @@ class OrmStorage
         if (!in_array($operation, $this->availableOperations)) {
             throw new \Exception("Wrong operation: '{$operation}'");
         }
-        $query = $this->queryRule->prepare($operation, $wrapper);
-        return $this->adapter->query($query);
+        return $this->$operation($wrapper);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function select(EntityWrapper $wrapper)
+    {
+        return $this->adapter->select($wrapper);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function insert(EntityWrapper $wrapper)
+    {
+        if (!$this->adapter->insert($wrapper)) {
+            return false;
+        }
+
+        return $this->sameForRelatedEntities('insert', $wrapper);
+    }
+
+    /**
+     * @param string        $method
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function sameForRelatedEntities($method, EntityWrapper $wrapper)
+    {
+        $properties = $wrapper->getPreparedProperties();
+        foreach ($properties as $property) {
+            if (!isset($property->value) || !$property->metaData->getRelated()) {
+                continue;
+            }
+            if ($property->value instanceof OrmEntity) {
+                return $this->$method($this->getLinkedWrapper($wrapper, $property->value));
+            } elseif (is_array($property->value)) {
+                foreach ($property->value as $item) {
+                    if ($item instanceof OrmEntity) {
+                        return $this->$method($this->getLinkedWrapper($wrapper, $item));
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     * @param OrmEntity     $entity
+     *
+     * @return EntityWrapper
+     */
+    private function getLinkedWrapper(EntityWrapper $wrapper, OrmEntity $entity)
+    {
+        $relatedWrapper = EntityPreparer::getWrapper($entity);
+        WrappersLinking::connect($wrapper, $relatedWrapper);
+        return $relatedWrapper;
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function update(EntityWrapper $wrapper)
+    {
+        if (!$this->adapter->update($wrapper)) {
+            return false;
+        }
+
+        return $this->sameForRelatedEntities('update', $wrapper);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function delete(EntityWrapper $wrapper)
+    {
+        if (!$this->sameForRelatedEntities('delete', $wrapper)) {
+            return false;
+        }
+
+        return $this->adapter->delete($wrapper);
     }
 
     /**

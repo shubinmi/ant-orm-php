@@ -9,7 +9,7 @@ use AntOrm\Entity\Objects\OrmProperty;
 use AntOrm\Entity\Objects\OrmTable;
 use AntOrm\Entity\OrmEntity;
 
-class EntityPrepareHelper
+class EntityPreparer
 {
     /**
      * @param OrmEntity $entity
@@ -18,11 +18,11 @@ class EntityPrepareHelper
      */
     public static function getWrapper(OrmEntity $entity)
     {
-        $preparedProperties = EntityPrepareHelper::getEntityProperties($entity);
-        $propertiesMetaData = EntityPrepareHelper::getPropertiesMeta($preparedProperties);
+        $preparedProperties = EntityPreparer::getEntityProperties($entity);
+        $propertiesMetaData = EntityPreparer::getPropertiesMeta($preparedProperties);
         $metaData           = new EntityMetaData();
         $metaData
-            ->setTable(EntityPrepareHelper::getTableMeta($entity, $propertiesMetaData))
+            ->setTable(EntityPreparer::getTableMeta($entity, $propertiesMetaData))
             ->setColumns($propertiesMetaData);
         $wrapper = new EntityWrapper();
         $wrapper->setEntity($entity)
@@ -67,17 +67,10 @@ class EntityPrepareHelper
     {
         $propertiesMeta = [];
         foreach ($preparedProperties as &$preparedProperty) {
-            if (!$propertyMeta = ParseDocHelper::getOrmPropertyByDoc($preparedProperty->doc)) {
-                $propertyMeta = new OrmProperty();
-            }
-            $propertyMeta->setName($preparedProperty->name);
-            if (!$propertyMeta->getColumn()) {
-                $propertyMeta->setColumn(
-                    strtolower(trim($preparedProperty->name))
-                );
-            }
-            $propertiesMeta[$propertyMeta->getName()] = $propertyMeta;
-            $preparedProperty->metaData               = $propertyMeta;
+            $propertyMeta               = OrmMetaConstructor::byEntityProperty($preparedProperty);
+            $preparedProperty->metaData = $propertyMeta;
+            $key                        = $propertyMeta->getName();
+            $propertiesMeta[$key]       = $propertyMeta;
         }
 
         return $propertiesMeta;
@@ -93,7 +86,7 @@ class EntityPrepareHelper
     {
         $reflector = new \ReflectionClass($entity);
         $doc       = $reflector->getDocComment();
-        if (!$tableMeta = ParseDocHelper::getOrmTableByDoc($doc)) {
+        if (!$tableMeta = AnnotationParser::getOrmTableByDoc($doc)) {
             $tableMeta = new OrmTable();
         }
         if ($entity->table) {

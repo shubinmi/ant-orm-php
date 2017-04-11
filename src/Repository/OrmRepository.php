@@ -2,7 +2,7 @@
 
 namespace AntOrm\Repository;
 
-use AntOrm\Entity\Helpers\EntityPrepareHelper;
+use AntOrm\Entity\Helpers\EntityPreparer;
 use AntOrm\Entity\OrmEntity;
 use AntOrm\Storage\OrmStorage;
 
@@ -173,7 +173,7 @@ class OrmRepository implements RepositoryInterface
      */
     protected function query($operation, OrmEntity $entity)
     {
-        $wrapper = EntityPrepareHelper::getWrapper($entity);
+        $wrapper = EntityPreparer::getWrapper($entity);
         return $this->storage->query($operation, $wrapper);
     }
 }

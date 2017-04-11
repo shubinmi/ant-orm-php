@@ -2,13 +2,13 @@
 
 namespace AntOrm\QueryRules\Sql;
 
+use AntOrm\Entity\EntityProperty;
 use AntOrm\Entity\EntityWrapper;
 use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\QueryRules\Helpers\ColumnNameParser;
-use AntOrm\QueryRules\QueryPrepareInterface;
 use AntOrm\QueryRules\QueryStructure;
 
-class MySql implements QueryPrepareInterface, CrudDbInterface
+class MySql implements CrudDbInterface
 {
     const TABLE      = 'table';
     const TYPES      = 'types';
@@ -16,62 +16,66 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     const COLUMNS    = 'columns';
 
     /**
-     * @var EntityWrapper
-     */
-    private $wrapper;
-
-    /**
-     * @param string        $operation
      * @param EntityWrapper $wrapper
      *
      * @return QueryStructure
-     * @throws \Exception
      */
-    public function prepare($operation, EntityWrapper $wrapper)
-    {
-        if (!in_array($operation, get_class_methods('AntOrm\QueryRules\CrudDbInterface'))) {
-            throw new \Exception('Incorrect $operator value = ' . $operation);
-        }
-        $this->wrapper = $wrapper;
-
-        return $this->$operation();
-    }
-
-    /**
-     * @return QueryStructure
-     */
-    public function select()
+    public function select(EntityWrapper $wrapper)
     {
         $query     = new QueryStructure();
-        $searchSql = new SearchSql($this->wrapper->getEntity()->antOrmSearchParams);
-        $sql       = $this->getSqlQuery($searchSql, $query);
+        $searchSql = new SearchSql($wrapper->getEntity()->antOrmSearchParams);
+        $sql       = $this->getSqlQuery($searchSql, $query, $wrapper);
         $query->setQuery($sql);
 
         return $query;
     }
 
     /**
+     * @param EntityWrapper $wrapper
+     *
      * @return QueryStructure
      */
-    public function insert()
+    public function insert(EntityWrapper $wrapper)
     {
         $query       = new QueryStructure();
-        $properties  = $this->wrapper->getPreparedProperties();
+        $properties  = $wrapper->getPreparedProperties();
         $queryValues = $queryColumns = [];
         foreach ($properties as $property) {
-            if (isset($property->value)) {
+            /** @var EntityProperty $property */
+            if (
+                (!isset($property->value) && !$property->linkedWrapper)
+                || $property->metaData->getRelated()
+            ) {
+                continue;
+            }
+            if ($property->linkedWrapper) {
+                if (!$linkQuery = $this->getLinkedInsertColumn($property)) {
+                    continue;
+                }
+                $query->setBindParams(
+                    array_merge(
+                        $query->getBindParams(), $linkQuery->getBindParams()
+                    )
+                );
+                $query->setBindPatterns(
+                    array_merge(
+                        $query->getBindPatterns(), $linkQuery->getBindPatterns()
+                    )
+                );
+                $queryValues[] = "({$linkQuery->getQuery()})";
+            } else {
                 $query->addBindParam($property->value);
                 $query->addBindPattern($property->getBindTypePattern());
-                $queryValues[]  = '?';
-                $queryColumns[] = $property->name;
+                $queryValues[] = '?';
             }
+            $queryColumns[] = $property->metaData->getColumn();
         }
         $queryColumns = implode('`,`', $queryColumns);
         $queryValues  = implode(',', $queryValues);
         if (!empty($queryColumns)) {
             $queryColumns = '`' . $queryColumns . '`';
         }
-        $tableName = $this->wrapper->getMetaData()->getTable()->getName();
+        $tableName = $wrapper->getMetaData()->getTable()->getName();
         /** @noinspection SqlNoDataSourceInspection */
         $sql = "INSERT INTO `{$tableName}` ({$queryColumns}) VALUES ({$queryValues})";
         $query->setQuery($sql);
@@ -80,44 +84,89 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     }
 
     /**
+     * @param EntityProperty $entityProperty
+     *
+     * @return QueryStructure|null
+     */
+    public function getLinkedInsertColumn(EntityProperty $entityProperty)
+    {
+        $properties   = $entityProperty->linkedWrapper->getPreparedProperties();
+        $selectTable  = $entityProperty->linkedWrapper->getMetaData()->getTable()->getName();
+        $query        = new QueryStructure();
+        $selectColumn = '';
+        $where        = '';
+        /** @var EntityProperty $property */
+        foreach ($properties as $property) {
+            if (
+                $property->metaData->getRelated()
+                && $property->metaData->getRelated()->getOnHisColumn() === $entityProperty->metaData->getColumn()
+            ) {
+                $selectColumn = $property->metaData->getRelated()->getOnMyColumn();
+            }
+            if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            $query->addBindParam($property->value);
+            $query->addBindPattern($property->getBindTypePattern());
+            if ($where) {
+                $where .= ' AND ';
+            }
+            $where .= " `{$property->metaData->getColumn()}` = ? ";
+        }
+        if (empty($selectColumn) || empty($where)) {
+            return null;
+        }
+        /** @noinspection SqlDialectInspection */
+        /** @noinspection SqlNoDataSourceInspection */
+        $sql = "SELECT `{$selectColumn}` FROM `{$selectTable}` WHERE {$where} ORDER BY `{$selectColumn}` DESC LIMIT 1";
+        $query->setQuery($sql);
+
+        return $query;
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
      * @return QueryStructure
      */
-    public function update()
+    public function update(EntityWrapper $wrapper)
     {
         $query                  = new QueryStructure();
-        $properties             = $this->wrapper->getPreparedProperties();
+        $properties             = $wrapper->getPreparedProperties();
         $queryColumns           = '';
-        $primaryColumns         = $this->wrapper->getMetaData()->getTable()->getPrimaryProperties();
+        $primaryColumns         = $wrapper->getMetaData()->getTable()->getPrimaryProperties();
         $declaredPrimaryColumns = !empty($primaryColumns);
         $where                  = '';
         $whereBindParams        = [];
         $whereBindPatterns      = [];
         foreach ($properties as $property) {
-            if (isset($property->value)) {
-                if (!$declaredPrimaryColumns && empty($where)) {
-                    if (strpos($property->name, 'id') !== false) {
-                        $where               .= "`{$property->name}` = ?";
-                        $whereBindParams[]   = $property->value;
-                        $whereBindPatterns[] = $property->getBindTypePattern();
-                        continue;
-                    }
-                }
-                if ($declaredPrimaryColumns && in_array(trim($property->name), $primaryColumns)) {
-                    if (!empty($where)) {
-                        $where .= ' AND ';
-                    }
-                    $where               .= "`{$property->name}` = ?";
+            /** @var EntityProperty $property */
+            if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            if (!$declaredPrimaryColumns && empty($where)) {
+                if (strpos($property->name, 'id') !== false) {
+                    $where               .= "`{$property->metaData->getColumn()}` = ?";
                     $whereBindParams[]   = $property->value;
                     $whereBindPatterns[] = $property->getBindTypePattern();
                     continue;
                 }
-                if (!empty($queryColumns)) {
-                    $queryColumns .= ', ';
-                }
-                $queryColumns .= "`{$property->name}` = ?";
-                $query->addBindParam($property->value);
-                $query->addBindPattern($property->getBindTypePattern());
             }
+            if ($declaredPrimaryColumns && in_array(trim($property->name), $primaryColumns)) {
+                if (!empty($where)) {
+                    $where .= ' AND ';
+                }
+                $where               .= "`{$property->metaData->getColumn()}` = ?";
+                $whereBindParams[]   = $property->value;
+                $whereBindPatterns[] = $property->getBindTypePattern();
+                continue;
+            }
+            if (!empty($queryColumns)) {
+                $queryColumns .= ', ';
+            }
+            $queryColumns .= "`{$property->metaData->getColumn()}` = ?";
+            $query->addBindParam($property->value);
+            $query->addBindPattern($property->getBindTypePattern());
         }
         if (!$where) {
             $where = '1 = 2';
@@ -125,7 +174,7 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
             $query->setBindParams(array_merge($query->getBindParams(), $whereBindParams));
             $query->setBindPatterns(array_merge($query->getBindPatterns(), $whereBindPatterns));
         }
-        $tableName = $this->wrapper->getMetaData()->getTable()->getName();
+        $tableName = $wrapper->getMetaData()->getTable()->getName();
         /** @noinspection SqlNoDataSourceInspection */
         $sql = "UPDATE `{$tableName}` SET {$queryColumns} WHERE {$where}";
         $query->setQuery($sql);
@@ -134,38 +183,44 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     }
 
     /**
+     * @param EntityWrapper $wrapper
+     *
      * @return QueryStructure
      */
-    public function delete()
+    public function delete(EntityWrapper $wrapper)
     {
         $query                  = new QueryStructure();
-        $properties             = $this->wrapper->getPreparedProperties();
-        $primaryColumns         = $this->wrapper->getMetaData()->getTable()->getPrimaryProperties();
+        $properties             = $wrapper->getPreparedProperties();
+        $primaryColumns         = $wrapper->getMetaData()->getTable()->getPrimaryProperties();
         $declaredPrimaryColumns = !empty($primaryColumns);
         $where                  = '';
         foreach ($properties as $property) {
-            if (isset($property->value)) {
-                if (!$declaredPrimaryColumns && empty($where)) {
-                    if (strpos($property->name, 'id') !== false) {
-                        $where .= "`$property->name` = ?";
-                        $query->addBindParam($property->value);
-                        $query->addBindPattern($property->getBindTypePattern());
-                    }
-                }
-                if ($declaredPrimaryColumns && in_array(trim($property->name), $primaryColumns)) {
-                    if (!empty($where)) {
-                        $where .= ' AND ';
-                    }
-                    $where .= "`$property->name` = ?";
+            if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            if (!$declaredPrimaryColumns && empty($where)) {
+                if (strpos($property->metaData->getColumn(), 'id') !== false) {
+                    $where .= "`{$property->metaData->getColumn()}` = ?";
                     $query->addBindParam($property->value);
                     $query->addBindPattern($property->getBindTypePattern());
                 }
+            }
+            if (
+                $declaredPrimaryColumns
+                && in_array(trim($property->metaData->getColumn()), $primaryColumns)
+            ) {
+                if (!empty($where)) {
+                    $where .= ' AND ';
+                }
+                $where .= "`{$property->metaData->getColumn()}` = ?";
+                $query->addBindParam($property->value);
+                $query->addBindPattern($property->getBindTypePattern());
             }
         }
         if (!$where) {
             $where = '1 = 2';
         }
-        $tableName = $this->wrapper->getMetaData()->getTable()->getName();
+        $tableName = $wrapper->getMetaData()->getTable()->getName();
         /** @noinspection SqlNoDataSourceInspection */
         $sql = "DELETE FROM `{$tableName}` WHERE {$where}";
         $query->setQuery($sql);
@@ -176,19 +231,20 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     /**
      * @param SearchSql      $searchSql
      * @param QueryStructure $queryStructure
+     * @param EntityWrapper  $wrapper
      *
      * @return string
      */
-    private function getSqlQuery(SearchSql $searchSql, QueryStructure &$queryStructure)
+    private function getSqlQuery(SearchSql $searchSql, QueryStructure &$queryStructure, EntityWrapper $wrapper)
     {
         $distinct = $searchSql->distinct ? 'DISTINCT' : '';
-        $table    = $this->wrapper->getMetaData()->getTable()->getName();
+        $table    = $wrapper->getMetaData()->getTable()->getName();
         $sql      = 'SELECT ' . $distinct . " `{$table}`.* FROM `{$table}`";
         if (!empty($searchSql->join)) {
             $sql .= ' ' . $this->getQueryJoin($searchSql) . ' ';
         }
         $sql .= ' WHERE ';
-        $sql .= !$searchSql->where ? 1 : $this->getQueryWhere($searchSql->where, $queryStructure);
+        $sql .= !$searchSql->where ? 1 : $this->getQueryWhere($wrapper, $searchSql->where, $queryStructure);
         if ($searchSql->groupBy) {
             $sql .= ' GROUP BY ' . $searchSql->groupBy;
         }
@@ -265,25 +321,27 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
     }
 
     /**
+     * @param EntityWrapper  $wrapper
      * @param array          $whereParams
      * @param QueryStructure $queryStructure
      * @param string         $logicOperator
      *
      * @return string
      */
-    private function getQueryWhere(array $whereParams, QueryStructure &$queryStructure, $logicOperator = 'AND')
-    {
+    private function getQueryWhere(
+        EntityWrapper $wrapper, array $whereParams, QueryStructure &$queryStructure, $logicOperator = 'AND'
+    ) {
         $sql              = '';
         $iterateNumber    = 0;
         $countWhereParams = count($whereParams);
         foreach ($whereParams as $key => $param) {
             $iterateNumber++;
             if (in_array(strtolower($key), ['or', 'and']) && is_array($param)) {
-                $sql .= ' ( ' . $this->getQueryWhere($param, $queryStructure, $key) . ' ) ';
+                $sql .= ' ( ' . $this->getQueryWhere($wrapper, $param, $queryStructure, $key) . ' ) ';
             } elseif (is_array($param)) {
-                $sql .= ' ( ' . $this->getQueryWhere($param, $queryStructure, $logicOperator) . ' ) ';
+                $sql .= ' ( ' . $this->getQueryWhere($wrapper, $param, $queryStructure, $logicOperator) . ' ) ';
             } else {
-                $sql .= $this->getPartOfCondition($key, $param, $queryStructure);
+                $sql .= $this->getPartOfCondition($key, $param, $queryStructure, $wrapper);
             }
             if ($iterateNumber < $countWhereParams) {
                 $sql .= ' ' . $logicOperator . ' ';
@@ -298,23 +356,27 @@ class MySql implements QueryPrepareInterface, CrudDbInterface
      * @param string         $columnValue
      * @param QueryStructure $queryStructure
      *
+     * @param EntityWrapper  $wrapper
+     *
      * @return string
      */
-    private function getPartOfCondition($columnNameWithCompareOperator, $columnValue, QueryStructure &$queryStructure)
-    {
+    private function getPartOfCondition(
+        $columnNameWithCompareOperator, $columnValue,
+        QueryStructure &$queryStructure, EntityWrapper $wrapper
+    ) {
         if (!$conditionParts = $this->getColumnNameAndCompareOperation($columnNameWithCompareOperator)) {
             return '';
         }
         $columnName          = $conditionParts['columnName'];
         $operator            = $conditionParts['compareOperator'];
         $escapedColumnName   = ColumnNameParser::getEscaped(
-            $columnName, $this->wrapper->getMetaData()->getTable()->getName()
+            $columnName, $wrapper->getMetaData()->getTable()->getName()
         );
         $comparisonOperators = ['in', 'is', 'is not', 'not in', 'strcmp', 'interval', 'least', 'not between'];
         if (in_array(strtolower($operator), $comparisonOperators)) {
             return " {$escapedColumnName} {$operator} {$columnValue} ";
         }
-        $properties = $this->wrapper->getPreparedProperties();
+        $properties = $wrapper->getPreparedProperties();
         if (empty($properties[$columnName])) {
             return " $escapedColumnName {$operator} '{$columnValue}' ";
         }

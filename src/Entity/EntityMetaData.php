@@ -2,6 +2,7 @@
 
 namespace AntOrm\Entity;
 
+use AntOrm\Entity\Helpers\OrmMetaConstructor;
 use AntOrm\Entity\Objects\OrmProperty;
 use AntOrm\Entity\Objects\OrmTable;
 
@@ -51,6 +52,12 @@ class EntityMetaData
      */
     public function setColumns(array $columns)
     {
+        foreach ($columns as &$column) {
+            if (!$this->table) {
+                break;
+            }
+            OrmMetaConstructor::setRelationColumns($column, $this->table);
+        }
         $this->columns = $columns;
         return $this;
     }

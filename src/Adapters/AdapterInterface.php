@@ -3,10 +3,11 @@
 namespace AntOrm\Adapters;
 
 use AntOrm\Adapters\Objects\StorageConfig;
+use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\QueryRules\QueryStructure;
 use AntOrm\QueryRules\TransactionQueryList;
 
-interface AdapterInterface
+interface AdapterInterface extends CrudDbInterface
 {
     /**
      * @param array|StorageConfig $config
