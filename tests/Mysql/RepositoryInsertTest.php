@@ -12,7 +12,8 @@ class RepositoryInsertTest extends TestCase
     {
         /** @var OrmStorage $storage */
         global $storage;
-        $repo = new OrmRepository(clone $storage);
+        $repo = new OrmRepository(clone $storage, UserEntity::className());
+        $repo->find();
 
         $profile            = new ProfileEntity();
         $profile->lastName  = 'QA';

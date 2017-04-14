@@ -6,14 +6,13 @@ use AntOrm\Entity\EntityProperty;
 use AntOrm\Entity\EntityWrapper;
 use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\QueryRules\Helpers\ColumnNameParser;
+use AntOrm\QueryRules\Helpers\SelectSqlFromWrapper;
 use AntOrm\QueryRules\QueryStructure;
 
 class MySql implements CrudDbInterface
 {
-    const TABLE      = 'table';
-    const TYPES      = 'types';
-    const PARAMETERS = 'parameters';
-    const COLUMNS    = 'columns';
+    const SELECT_PREFIX_SEPARATOR = '____';
+    const SELECT_PRIMARY_KEY      = 'orm_primary_key';
 
     /**
      * @param EntityWrapper $wrapper
@@ -237,9 +236,13 @@ class MySql implements CrudDbInterface
      */
     private function getSqlQuery(SearchSql $searchSql, QueryStructure &$queryStructure, EntityWrapper $wrapper)
     {
-        $distinct = $searchSql->distinct ? 'DISTINCT' : '';
-        $table    = $wrapper->getMetaData()->getTable()->getName();
-        $sql      = 'SELECT ' . $distinct . " `{$table}`.* FROM `{$table}`";
+        $selectParts = SelectSqlFromWrapper::getRelatedParts($wrapper, new RelatedSelectSqlParts());
+        $selected    = implode(', ', $selectParts->getSelects());
+        $joined      = implode(' ', $selectParts->getJoins());
+        $distinct    = $searchSql->distinct ? 'DISTINCT' : '';
+        $table       = $wrapper->getMetaData()->getTable()->getName();
+        /** @noinspection SqlNoDataSourceInspection */
+        $sql = "SELECT {$distinct} {$selected} FROM `{$table}` {$joined}";
         if (!empty($searchSql->join)) {
             $sql .= ' ' . $this->getQueryJoin($searchSql) . ' ';
         }

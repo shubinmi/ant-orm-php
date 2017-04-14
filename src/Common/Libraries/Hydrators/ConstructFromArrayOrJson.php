@@ -9,12 +9,8 @@ abstract class ConstructFromArrayOrJson
      */
     public function __construct($params = null)
     {
-        if (is_string($params)) {
-            $params = json_decode($params, true);
-        } elseif ($params instanceof \stdClass) {
-            $params = (array)$params;
-        }
-        if (!is_array($params)) {
+        $params = $this->convertToArray($params);
+        if (empty($params)) {
             return;
         }
         foreach ($params as $property => $value) {
@@ -25,6 +21,25 @@ abstract class ConstructFromArrayOrJson
                 $this->{$property} = $value;
             }
         }
+    }
+
+    /**
+     * @param mixed $params
+     *
+     * @return array
+     */
+    protected function convertToArray($params)
+    {
+        if (is_string($params)) {
+            $params = json_decode($params, true);
+        } elseif ($params instanceof \stdClass) {
+            $params = (array)$params;
+        }
+        if (!is_array($params)) {
+            return [];
+        }
+
+        return $params;
     }
 
     /**

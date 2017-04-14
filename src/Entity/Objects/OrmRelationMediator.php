@@ -19,7 +19,7 @@ class OrmRelationMediator extends ConstructFromArrayOrJson
     /**
      * @var string table column field
      */
-    protected $hisColumn;
+    protected $relatedColumn;
 
     /**
      * @return string
@@ -62,19 +62,19 @@ class OrmRelationMediator extends ConstructFromArrayOrJson
     /**
      * @return string
      */
-    public function getHisColumn()
+    public function getRelatedColumn()
     {
-        return $this->hisColumn;
+        return $this->relatedColumn;
     }
 
     /**
-     * @param string $hisColumn
+     * @param string $relatedColumn
      *
      * @return $this
      */
-    public function setHisColumn($hisColumn)
+    public function setRelatedColumn($relatedColumn)
     {
-        $this->hisColumn = $hisColumn;
+        $this->relatedColumn = $relatedColumn;
         return $this;
     }
 }

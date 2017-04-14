@@ -6,7 +6,7 @@ use AntOrm\Entity\Helpers\EntityPreparer;
 use AntOrm\Entity\OrmEntity;
 use AntOrm\Storage\OrmStorage;
 
-class OrmRepository implements RepositoryInterface
+class OrmRepository
 {
     /**
      * @var OrmStorage
@@ -73,39 +73,64 @@ class OrmRepository implements RepositoryInterface
         $entity                     = new $entityClass();
         $entity->antOrmSearchParams = $searchParams;
 
-        return $this->query('select', $entity);
+        return $this->exec('select', $entity);
     }
 
     /**
      * @param OrmEntity $entity
+     * @param bool      $asTransaction
      *
      * @return bool
-     * @throws \Exception
      */
-    public function insert($entity)
+    public function insert($entity, $asTransaction = true)
     {
-        return $this->query('insert', $entity);
+        if ($asTransaction && !$this->startTransaction()) {
+            return false;
+        }
+        $result = $this->exec('insert', $entity);
+        if ($asTransaction && !$result = $this->endTransaction()) {
+            return false;
+        }
+
+        return $result;
     }
 
     /**
      * @param OrmEntity $entity
+     * @param bool      $asTransaction
      *
      * @return bool
      */
-    public function update($entity)
+    public function update($entity, $asTransaction = true)
     {
-        return $this->query('update', $entity);
+        if ($asTransaction && !$this->startTransaction()) {
+            return false;
+        }
+        $result = $this->exec('update', $entity);
+        if ($asTransaction && !$result = $this->endTransaction()) {
+            return false;
+        }
+
+        return $result;
     }
 
     /**
      * @param OrmEntity $entity
+     * @param bool      $asTransaction
      *
      * @return bool
-     * @throws \Exception
      */
-    public function delete($entity)
+    public function delete($entity, $asTransaction = true)
     {
-        return $this->query('delete', $entity);
+        if ($asTransaction && !$this->startTransaction()) {
+            return false;
+        }
+        $result = $this->exec('delete', $entity);
+        if ($asTransaction && !$result = $this->endTransaction()) {
+            return false;
+        }
+
+        return $result;
     }
 
     /**
@@ -171,9 +196,9 @@ class OrmRepository implements RepositoryInterface
      * @return bool
      * @throws \Exception
      */
-    protected function query($operation, OrmEntity $entity)
+    protected function exec($operation, OrmEntity $entity)
     {
         $wrapper = EntityPreparer::getWrapper($entity);
-        return $this->storage->query($operation, $wrapper);
+        return $this->storage->make($operation, $wrapper);
     }
 }

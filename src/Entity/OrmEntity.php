@@ -16,6 +16,35 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
      */
     public $antOrmSearchParams = [];
 
+    //public function __construct($params = null)
+    //{
+    //    $params = $this->convertToArray($params);
+    //    if (empty($params)) {
+    //        return;
+    //    }
+    //    $wrapper   = EntityPreparer::getWrapper($this);
+    //    $tableName = $wrapper->getMetaData()->getTable()->getName();
+    //    $myParams  = [];
+    //    $related   = [];
+    //    foreach ($wrapper->getMetaData()->getColumns() as $column) {
+    //        if ($column->getRelated() && $column->getRelated()->getWith() instanceof OrmEntity) {
+    //            if ($column->getRelated()->hasOne()) {
+    //                $myParams[$column->getName()] =
+    //            }
+    //            $related[] = $column->getRelated()->getWith();
+    //            continue;
+    //        }
+    //        $key = $tableName . '_' . $column->getName();
+    //        if (empty($params[$key])) {
+    //            continue;
+    //        }
+    //        $myParams[$column->getName()] = $params[$key];
+    //        unset($params[$key]);
+    //    }
+    //
+    //    parent::__construct($params);
+    //}
+
     /**
      * @return array
      */
@@ -27,8 +56,7 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
             \ReflectionProperty::IS_PROTECTED |
             \ReflectionProperty::IS_PRIVATE
         );
-
-        $result = [];
+        $result     = [];
         foreach ($properties as $property) {
             $property->setAccessible(true);
             if (property_exists(get_class(), $property->getName())) {

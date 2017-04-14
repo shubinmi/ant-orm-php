@@ -292,11 +292,15 @@ class MysqliAdapter implements AdapterInterface
 
         $i = 0;
         while ($row = $result->fetch_row()) {
-            $object = new \stdClass();
+            $tableData = [];
             foreach ($row as $column => $value) {
-                $object->{$fieldName[$column]} = $value;
+                $columnParts  = explode(MySql::SELECT_PREFIX_SEPARATOR, $column);
+                $tableName    = $columnParts[0];
+                $propertyName = $columnParts[1];
+
+                $tableData[$tableName][$propertyName] = $value;
             }
-            $this->result[] = $object;
+            $this->result[] = $tableData;
             ++$i;
         }
         $result->close();

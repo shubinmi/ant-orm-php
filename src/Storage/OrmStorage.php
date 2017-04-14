@@ -64,7 +64,7 @@ class OrmStorage implements CrudDbInterface
      * @return bool
      * @throws \Exception
      */
-    public function query($operation, EntityWrapper $wrapper)
+    public function make($operation, EntityWrapper $wrapper)
     {
         if (!in_array($operation, $this->availableOperations)) {
             throw new \Exception("Wrong operation: '{$operation}'");
