@@ -84,15 +84,7 @@ class OrmRepository
      */
     public function insert($entity, $asTransaction = true)
     {
-        if ($asTransaction && !$this->startTransaction()) {
-            return false;
-        }
-        $result = $this->exec('insert', $entity);
-        if ($asTransaction && !$result = $this->endTransaction()) {
-            return false;
-        }
-
-        return $result;
+        return $this->make('insert', $entity, $asTransaction);
     }
 
     /**
@@ -103,15 +95,7 @@ class OrmRepository
      */
     public function update($entity, $asTransaction = true)
     {
-        if ($asTransaction && !$this->startTransaction()) {
-            return false;
-        }
-        $result = $this->exec('update', $entity);
-        if ($asTransaction && !$result = $this->endTransaction()) {
-            return false;
-        }
-
-        return $result;
+        return $this->make('update', $entity, $asTransaction);
     }
 
     /**
@@ -122,11 +106,26 @@ class OrmRepository
      */
     public function delete($entity, $asTransaction = true)
     {
-        if ($asTransaction && !$this->startTransaction()) {
+        return $this->make('delete', $entity, $asTransaction);
+    }
+
+    /**
+     * @param           $operation
+     * @param OrmEntity $entity
+     * @param           $isTransaction
+     *
+     * @return bool
+     */
+    protected function make($operation, OrmEntity $entity, $isTransaction)
+    {
+        if ($this->storage->onTransaction()) {
+            return $this->exec($operation, $entity);
+        }
+        if ($isTransaction && !$this->startTransaction()) {
             return false;
         }
-        $result = $this->exec('delete', $entity);
-        if ($asTransaction && !$result = $this->endTransaction()) {
+        $result = $this->exec($operation, $entity);
+        if ($isTransaction && !$result = $this->endTransaction()) {
             return false;
         }
 
@@ -150,7 +149,7 @@ class OrmRepository
     }
 
     /**
-     * @return mixed
+     * @return array[]
      */
     public function result()
     {
@@ -158,7 +157,7 @@ class OrmRepository
     }
 
     /**
-     * @return mixed
+     * @return array[]
      */
     public function lastResult()
     {

@@ -29,24 +29,22 @@ class OrmMetaConstructor
         }
         $type = AnnotationParser::getVarContent($property->doc);
         if (!$related->getWith() && $type) {
-            $preparedType = strtolower(
-                current(
-                    explode(
-                        ' ',
-                        trim(
-                            str_replace(
-                                ['null|', '|null', 'null |', '[', ']'],
-                                '',
-                                strtolower($type)
-                            )
+            $preparedType = current(
+                explode(
+                    ' ',
+                    trim(
+                        str_replace(
+                            ['null|', '|null', 'null |', '| null', '[', ']'],
+                            '',
+                            $type
                         )
                     )
                 )
             );
             if (
             !in_array(
-                ['string', 'int', 'integer', 'boolean', 'bool', 'string', 'float'],
-                $preparedType
+                strtolower($preparedType),
+                ['string', 'int', 'integer', 'boolean', 'bool', 'string', 'float']
             )
             ) {
                 $related->setWith($preparedType);

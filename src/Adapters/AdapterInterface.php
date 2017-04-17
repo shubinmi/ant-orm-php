@@ -44,6 +44,11 @@ interface AdapterInterface extends CrudDbInterface
     /**
      * @return bool
      */
+    public function onTransaction();
+
+    /**
+     * @return bool
+     */
     public function endTransaction();
 
     /**

@@ -24,25 +24,26 @@ class SelectSqlFromWrapper
             )
             . "`) as {$prefix}{$ormPrimaryKey}"
         );
-        foreach ($wrapper->getMetaData()->getColumns() as $column) {
-            if (!$column->getRelated() || !$column->getRelated()->getWith() instanceof OrmEntity) {
+        foreach ($wrapper->getPreparedProperties() as $property) {
+            $propertyMeta = $property->metaData;
+            if (!$propertyMeta->getRelated() || !$propertyMeta->getRelated()->getWith() instanceof OrmEntity) {
                 $parts->addSelect(
-                    "`{$tableName}`.`{$column->getColumn()}` as {$prefix}{$column->getName()}"
+                    "`{$tableName}`.`{$propertyMeta->getColumn()}` as {$prefix}{$propertyMeta->getName()}"
                 );
                 continue;
             }
-            $relatedWrapper = EntityPreparer::getWrapper($column->getRelated()->getWith());
+            $relatedWrapper = EntityPreparer::getWrapper($propertyMeta->getRelated()->getWith());
             $joinTableName  = $relatedWrapper->getMetaData()->getTable()->getName();
 
-            $relatedWrappers[$prefix . $column->getName()] = $relatedWrapper;
-            if ($column->getRelated()->getBy()) {
-                $mediator = $column->getRelated()->getBy();
+            $relatedWrappers[$prefix . $propertyMeta->getName()] = $relatedWrapper;
+            if ($propertyMeta->getRelated()->getBy()) {
+                $mediator = $propertyMeta->getRelated()->getBy();
                 $parts->addJoin(
-                    "LEFT JOIN ( SELECT `{$joinTableName}`.*, `{$mediator->getTable()}`.`{$mediator->getMyColumn()}` WHERE `{$mediator->getTable()}`.`{$mediator->getRelatedColumn()}` = `{$joinTableName}`.`{$column->getRelated()->getOnHisColumn()}`) as `{$joinTableName}` ON `{$joinTableName}`.`{$mediator->getMyColumn()}` = `{$tableName}`.`{$column->getRelated()->getOnMyColumn()}`"
+                    "LEFT JOIN ( SELECT `{$joinTableName}`.*, `{$mediator->getTable()}`.`{$mediator->getMyColumn()}` FROM `{$joinTableName}`, `{$mediator->getTable()}` WHERE `{$mediator->getTable()}`.`{$mediator->getRelatedColumn()}` = `{$joinTableName}`.`{$propertyMeta->getRelated()->getOnHisColumn()}`) as `{$joinTableName}` ON `{$joinTableName}`.`{$mediator->getMyColumn()}` = `{$tableName}`.`{$propertyMeta->getRelated()->getOnMyColumn()}`"
                 );
             } else {
                 $parts->addJoin(
-                    "LEFT JOIN `{$joinTableName}` ON `{$joinTableName}`.`{$column->getRelated()->getOnHisColumn()}` = `{$tableName}`.`{$column->getRelated()->getOnMyColumn()}`"
+                    "LEFT JOIN `{$joinTableName}` ON `{$joinTableName}`.`{$propertyMeta->getRelated()->getOnHisColumn()}` = `{$tableName}`.`{$propertyMeta->getRelated()->getOnMyColumn()}`"
                 );
             }
         }

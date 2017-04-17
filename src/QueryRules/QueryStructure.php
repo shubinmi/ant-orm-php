@@ -7,7 +7,7 @@ class QueryStructure
     /**
      * @var string
      */
-    protected $query;
+    protected $query = '';
 
     /**
      * @var array

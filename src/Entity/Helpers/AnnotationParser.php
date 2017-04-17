@@ -86,6 +86,27 @@ class AnnotationParser
      *
      * @return string
      */
+    public static function prepareDocBlock($doc)
+    {
+        $doc   = str_replace([' ', "\r\n", "\n", "\r", PHP_EOL], '', $doc);
+        $parts = explode('"with":"', $doc);
+        if (count($parts) == 1) {
+            return $doc;
+        }
+        $doc   = $parts[0] . '"with":"';
+        $parts = explode('"', $parts[1]);
+        $with  = $parts[0];
+        unset($parts[0]);
+        $with = '\\\\' . implode('\\\\', array_filter(explode('\\', $with)));
+
+        return $doc . $with . '"' . implode('"', $parts) . '"';
+    }
+
+    /**
+     * @param string $doc
+     *
+     * @return string
+     */
     public static function getOrmContent($doc)
     {
         $ormDoc = [];

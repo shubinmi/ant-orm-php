@@ -4,9 +4,10 @@ namespace AntOrm\Tests\Mysql;
 
 use AntOrm\Repository\OrmRepository;
 use AntOrm\Storage\OrmStorage;
+use AntOrm\Tests\Entities\UserEntity;
 use PHPUnit\Framework\TestCase;
 
-class RepositorySelectTest extends TestCase
+class SelectTest extends TestCase
 {
     /**
      * @return OrmRepository
@@ -42,7 +43,7 @@ class RepositorySelectTest extends TestCase
                         'on'    => 'a.user_id=users.id'
                     ],
                 ],
-                'order-by'  => 'id DESC',
+                'order-by'  => 'users.id DESC',
                 'limit'     => 1,
                 'offset'    => 1
             ]

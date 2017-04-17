@@ -47,6 +47,13 @@ class OrmRelation extends ConstructFromArrayOrJson
      */
     public function setWith($with)
     {
+        if (class_exists($with)) {
+            $entity = new $with();
+            if ($entity instanceof OrmEntity) {
+                $this->with = new $with();
+                return $this;
+            }
+        }
         $declaredClasses = get_declared_classes();
         $myClass         = strtolower(trim(end(explode('\\', $with))));
         foreach ($declaredClasses as $declaredClass) {
@@ -55,6 +62,7 @@ class OrmRelation extends ConstructFromArrayOrJson
                 if (is_subclass_of($declaredClass, OrmEntity::class)) {
                     $class      = '\\' . $declaredClass;
                     $this->with = new $class();
+                    return $this;
                 }
             }
         }

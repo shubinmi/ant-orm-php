@@ -4,9 +4,10 @@ namespace AntOrm\Tests\Mysql;
 
 use AntOrm\Repository\OrmRepository;
 use AntOrm\Storage\OrmStorage;
+use AntOrm\Tests\Entities\UserEntity;
 use PHPUnit\Framework\TestCase;
 
-class RepositoryBasicTest extends TestCase
+class BasicTest extends TestCase
 {
     /**
      * @return OrmRepository

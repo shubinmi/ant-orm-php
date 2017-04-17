@@ -39,6 +39,8 @@ class MySql implements CrudDbInterface
         $query       = new QueryStructure();
         $properties  = $wrapper->getPreparedProperties();
         $queryValues = $queryColumns = [];
+        /** @var QueryStructure[] $mediators */
+        $mediators = [];
         foreach ($properties as $property) {
             /** @var EntityProperty $property */
             if (
@@ -48,20 +50,27 @@ class MySql implements CrudDbInterface
                 continue;
             }
             if ($property->linkedWrapper) {
-                if (!$linkQuery = $this->getLinkedInsertColumn($property)) {
+                list(
+                    $queryForColumn, $queryForMediator
+                    ) = $this->getLinkedInsertColumnOrMediator($property, $wrapper);
+                if ($queryForMediator) {
+                    $mediators[] = $queryForMediator;
+                    continue;
+                }
+                if (!$queryForColumn) {
                     continue;
                 }
                 $query->setBindParams(
                     array_merge(
-                        $query->getBindParams(), $linkQuery->getBindParams()
+                        $query->getBindParams(), $queryForColumn->getBindParams()
                     )
                 );
                 $query->setBindPatterns(
                     array_merge(
-                        $query->getBindPatterns(), $linkQuery->getBindPatterns()
+                        $query->getBindPatterns(), $queryForColumn->getBindPatterns()
                     )
                 );
-                $queryValues[] = "({$linkQuery->getQuery()})";
+                $queryValues[] = "({$queryForColumn->getQuery()})";
             } else {
                 $query->addBindParam($property->value);
                 $query->addBindPattern($property->getBindTypePattern());
@@ -78,49 +87,100 @@ class MySql implements CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql = "INSERT INTO `{$tableName}` ({$queryColumns}) VALUES ({$queryValues})";
         $query->setQuery($sql);
+        if (!empty($mediators)) {
+            $query = $this->mergeQueries(array_merge([$query], $mediators));
+        }
 
         return $query;
     }
 
     /**
      * @param EntityProperty $entityProperty
+     * @param EntityWrapper  $wrapper
      *
-     * @return QueryStructure|null
+     * @return QueryStructure[]
      */
-    public function getLinkedInsertColumn(EntityProperty $entityProperty)
-    {
-        $properties   = $entityProperty->linkedWrapper->getPreparedProperties();
-        $selectTable  = $entityProperty->linkedWrapper->getMetaData()->getTable()->getName();
-        $query        = new QueryStructure();
-        $selectColumn = '';
-        $where        = '';
+    public function getLinkedInsertColumnOrMediator(
+        EntityProperty $entityProperty, EntityWrapper $wrapper
+    ) {
+        $hisProperties     = $entityProperty->linkedWrapper->getPreparedProperties();
+        $hisTable          = $entityProperty->linkedWrapper->getMetaData()->getTable()->getName();
+        $myTable           = $wrapper->getMetaData()->getTable()->getName();
+        $queryColumn       = new QueryStructure();
+        $hisSelectColumn   = '';
+        $mySelectColumn    = '';
+        $where             = '';
+        $className         = get_class($wrapper->getEntity());
+        $mediatorTable     = '';
+        $mediatorMyColumn  = '';
+        $mediatorHisColumn = '';
         /** @var EntityProperty $property */
-        foreach ($properties as $property) {
+        foreach ($hisProperties as $property) {
             if (
-                $property->metaData->getRelated()
-                && $property->metaData->getRelated()->getOnHisColumn() === $entityProperty->metaData->getColumn()
+                empty($hisSelectColumn)
+                && $property->metaData->getRelated()
+                && $property->metaData->getRelated()->getWith() instanceof $className
             ) {
-                $selectColumn = $property->metaData->getRelated()->getOnMyColumn();
+                $hisPropertyRelated = $property->metaData->getRelated();
+                $hisSelectColumn    = $hisPropertyRelated->getOnMyColumn();
+                if ($hisPropertyRelated->getBy()) {
+                    $mediatorTable     = $hisPropertyRelated->getBy()->getTable();
+                    $mediatorHisColumn = $hisPropertyRelated->getBy()->getMyColumn();
+                    $mediatorMyColumn  = $hisPropertyRelated->getBy()->getRelatedColumn();
+                    $mySelectColumn    = $hisPropertyRelated->getOnHisColumn();
+                }
             }
             if (!isset($property->value) || $property->metaData->getRelated()) {
                 continue;
             }
-            $query->addBindParam($property->value);
-            $query->addBindPattern($property->getBindTypePattern());
+            $queryColumn->addBindParam($property->value);
+            $queryColumn->addBindPattern($property->getBindTypePattern());
             if ($where) {
                 $where .= ' AND ';
             }
             $where .= " `{$property->metaData->getColumn()}` = ? ";
         }
-        if (empty($selectColumn) || empty($where)) {
-            return null;
+        if (empty($hisSelectColumn) || empty($where)) {
+            return [null, null];
         }
         /** @noinspection SqlDialectInspection */
         /** @noinspection SqlNoDataSourceInspection */
-        $sql = "SELECT `{$selectColumn}` FROM `{$selectTable}` WHERE {$where} ORDER BY `{$selectColumn}` DESC LIMIT 1";
-        $query->setQuery($sql);
+        $sql =
+            "SELECT `{$hisSelectColumn}` FROM `{$hisTable}` WHERE {$where} ORDER BY `{$hisSelectColumn}` DESC LIMIT 1";
+        $queryColumn->setQuery($sql);
+        if (empty($mediatorTable)) {
+            return [$queryColumn, null];
+        }
+        $queryMediator = new QueryStructure();
+        $where         = '';
+        foreach ($wrapper->getPreparedProperties() as $property) {
+            if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            $queryMediator->addBindParam($property->value);
+            $queryMediator->addBindPattern($property->getBindTypePattern());
+            if ($where) {
+                $where .= ' AND ';
+            }
+            $where .= " `{$property->metaData->getColumn()}` = ? ";
+        }
+        /** @noinspection SqlDialectInspection */
+        /** @noinspection SqlNoDataSourceInspection */
+        $sqlMyColumn  =
+            "SELECT `{$mySelectColumn}` FROM `{$myTable}` WHERE {$where} ORDER BY `{$mySelectColumn}` DESC LIMIT 1";
+        $sqlHisColumn = $queryColumn->getQuery();
+        /** @noinspection SqlNoDataSourceInspection */
+        $queryMediator->setQuery(
+            "INSERT INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
+        );
+        $queryMediator->setBindPatterns(
+            array_merge($queryMediator->getBindPatterns(), $queryColumn->getBindPatterns())
+        );
+        $queryMediator->setBindParams(
+            array_merge($queryMediator->getBindParams(), $queryColumn->getBindParams())
+        );
 
-        return $query;
+        return [null, $queryMediator];
     }
 
     /**
@@ -193,8 +253,17 @@ class MySql implements CrudDbInterface
         $primaryColumns         = $wrapper->getMetaData()->getTable()->getPrimaryProperties();
         $declaredPrimaryColumns = !empty($primaryColumns);
         $where                  = '';
+        /** @var QueryStructure[] $relatedQueries */
+        $relatedQueries = [];
+        /** @var EntityProperty $property */
         foreach ($properties as $property) {
             if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            if ($property->linkedWrapper) {
+                if ($q = $this->getLinkedDeleteQuery($property, $wrapper)) {
+                    $relatedQueries[] = $q;
+                }
                 continue;
             }
             if (!$declaredPrimaryColumns && empty($where)) {
@@ -203,6 +272,7 @@ class MySql implements CrudDbInterface
                     $query->addBindParam($property->value);
                     $query->addBindPattern($property->getBindTypePattern());
                 }
+                continue;
             }
             if (
                 $declaredPrimaryColumns
@@ -223,6 +293,97 @@ class MySql implements CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql = "DELETE FROM `{$tableName}` WHERE {$where}";
         $query->setQuery($sql);
+        if (!empty($relatedQueries)) {
+            $query = $this->mergeQueries(array_merge($relatedQueries, [$query]));
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param QueryStructure[] $queries
+     *
+     * @return QueryStructure
+     */
+    private function mergeQueries(array $queries)
+    {
+        $result = new QueryStructure();
+        foreach ($queries as $query) {
+            $result->setQuery($result->getQuery() . ';' . $query->getQuery());
+            $result->setBindPatterns(
+                array_merge($result->getBindPatterns(), $query->getBindPatterns())
+            );
+            $result->setBindParams(
+                array_merge($result->getBindParams(), $query->getBindParams())
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param EntityProperty $property
+     * @param EntityWrapper  $wrapper
+     *
+     * @return QueryStructure|null
+     */
+    private function getLinkedDeleteQuery(EntityProperty $property, EntityWrapper $wrapper)
+    {
+        if (!$property->linkedWrapper) {
+            return null;
+        }
+        $myEntityClass      = get_class($wrapper->getEntity());
+        $linkedEntityValues = [];
+        $tableMediator      = '';
+        $hisColumnMediator  = '';
+        $hisColumn          = '';
+        $myColumnMediator   = '';
+        $myColumn           = '';
+        foreach ($property->linkedWrapper->getPreparedProperties() as $hisPr) {
+            $linkedEntityValues[$hisPr->metaData->getColumn()] = $hisPr->value;
+            if (
+                !$hisPr->metaData->getRelated()
+                || !$hisPr->metaData->getRelated()->getWith() instanceof $myEntityClass
+                || !$hisPr->metaData->getRelated()->getBy()
+            ) {
+                continue;
+            }
+            $tableMediator     = $hisPr->metaData->getRelated()->getBy()->getTable();
+            $hisColumnMediator = $hisPr->metaData->getRelated()->getBy()->getMyColumn();
+            $myColumnMediator  = $hisPr->metaData->getRelated()->getBy()->getRelatedColumn();
+            $hisColumn         = $hisPr->metaData->getRelated()->getOnMyColumn();
+            $myColumn          = $hisPr->metaData->getRelated()->getOnHisColumn();
+        }
+        if (empty($tableMediator) || !isset($linkedEntityValues[$hisColumn])) {
+            return null;
+        }
+        $hisValue = $linkedEntityValues[$hisColumn];
+        $myValue  = null;
+        foreach ($wrapper->getPreparedProperties() as $myPr) {
+            if ($myPr->metaData->getColumn() == $myColumn) {
+                $myValue = $myPr->value;
+            }
+        }
+        if (is_null($myValue)) {
+            return null;
+        }
+        $hisBindPattern = EntityProperty::BIND_TYPE_STRING;
+        $myBindPattern  = EntityProperty::BIND_TYPE_STRING;
+        if (is_int($hisValue)) {
+            $hisBindPattern = EntityProperty::BIND_TYPE_INTEGER;
+        }
+        if (is_int($myValue)) {
+            $myBindPattern = EntityProperty::BIND_TYPE_INTEGER;
+        }
+        $query = new QueryStructure();
+        /** @noinspection SqlDialectInspection */
+        /** @noinspection SqlNoDataSourceInspection */
+        $query
+            ->setQuery(
+                "DELETE FROM `{$tableMediator}` WHERE `{$myColumnMediator}` = ? AND `{$hisColumnMediator}` = ?"
+            )
+            ->addBindPattern($myBindPattern)->addBindParam($myValue)
+            ->addBindPattern($hisBindPattern)->addBindParam($hisValue);
 
         return $query;
     }
@@ -364,8 +525,7 @@ class MySql implements CrudDbInterface
      * @return string
      */
     private function getPartOfCondition(
-        $columnNameWithCompareOperator, $columnValue,
-        QueryStructure &$queryStructure, EntityWrapper $wrapper
+        $columnNameWithCompareOperator, $columnValue, QueryStructure &$queryStructure, EntityWrapper $wrapper
     ) {
         if (!$conditionParts = $this->getColumnNameAndCompareOperation($columnNameWithCompareOperator)) {
             return '';

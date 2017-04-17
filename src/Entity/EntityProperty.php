@@ -46,7 +46,7 @@ class EntityProperty
     {
         $this->name     = $name;
         $this->value    = $value;
-        $this->doc      = $doc;
+        $this->doc      = AnnotationParser::prepareDocBlock($doc);
         $this->metaData = new OrmProperty();
     }
 

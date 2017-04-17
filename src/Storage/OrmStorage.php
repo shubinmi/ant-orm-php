@@ -175,6 +175,14 @@ class OrmStorage implements CrudDbInterface
     /**
      * @return bool
      */
+    public function onTransaction()
+    {
+        return $this->adapter->onTransaction();
+    }
+
+    /**
+     * @return bool
+     */
     public function startTransaction()
     {
         return $this->adapter->startTransaction();

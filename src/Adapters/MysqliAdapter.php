@@ -21,7 +21,7 @@ class MysqliAdapter implements AdapterInterface
     private $stmt;
 
     /**
-     * @var \stdClass[]
+     * @var array[]
      */
     private $result;
 
@@ -93,6 +93,14 @@ class MysqliAdapter implements AdapterInterface
     {
         $this->onTransaction = true;
         return true;
+    }
+
+    /**
+     * @return bool
+     */
+    public function onTransaction()
+    {
+        return $this->onTransaction;
     }
 
     /**
@@ -266,43 +274,53 @@ class MysqliAdapter implements AdapterInterface
     }
 
     /**
-     * @return \stdClass[]
+     * @return array[]
      */
     public function result()
     {
+        if (empty($this->stmt[count($this->stmt) - 1])) {
+            return [];
+        }
         $this->result = [];
         $result       = $this->stmt[count($this->stmt) - 1]->get_result();
         if (!$result instanceof \mysqli_result) {
             return [];
         }
-
-        $fieldInfo = $result->fetch_fields();
-        $fieldInfo = $fieldInfo ?: [];
-
-        $i         = 0;
-        $fieldName = [];
-        $table     = '';
-        foreach ($fieldInfo as $field) {
-            if ($i == 0) {
-                $table = $field->table;
-            }
-            $fieldName[$i] = $field->table == $table ? $field->name : $field->table . '.' . $field->name;
-            ++$i;
-        }
-
-        $i = 0;
-        while ($row = $result->fetch_row()) {
-            $tableData = [];
+        $tree = [];
+        while ($row = $result->fetch_assoc()) {
             foreach ($row as $column => $value) {
-                $columnParts  = explode(MySql::SELECT_PREFIX_SEPARATOR, $column);
-                $tableName    = $columnParts[0];
-                $propertyName = $columnParts[1];
-
-                $tableData[$tableName][$propertyName] = $value;
+                $columnParts = explode(MySql::SELECT_PREFIX_SEPARATOR, $column);
+                $firsKey     = array_shift($columnParts);
+                $property    = end($columnParts);
+                if ($property == MySql::SELECT_PRIMARY_KEY) {
+                    continue;
+                }
+                unset($columnParts[count($columnParts) - 1]);
+                $v = $row[$firsKey . MySql::SELECT_PREFIX_SEPARATOR . MySql::SELECT_PRIMARY_KEY];
+                if (empty($tree[$v])) {
+                    $tree[$v] = [];
+                }
+                $element = &$tree[$v];
+                $key     = $firsKey;
+                foreach ($columnParts as $part) {
+                    $key  .= MySql::SELECT_PREFIX_SEPARATOR . $part;
+                    $pKey = $key . MySql::SELECT_PREFIX_SEPARATOR . MySql::SELECT_PRIMARY_KEY;
+                    $v    = $row[$pKey];
+                    if (empty($v)) {
+                        break;
+                    }
+                    if (empty($element[$part][$v])) {
+                        $element[$part][$v] = [];
+                    }
+                    $element = &$element[$part][$v];
+                }
+                if (empty($v)) {
+                    continue;
+                }
+                $element[$property] = $value;
             }
-            $this->result[] = $tableData;
-            ++$i;
         }
+        $this->result = $tree;
         $result->close();
 
         return $this->result;
@@ -325,7 +343,7 @@ class MysqliAdapter implements AdapterInterface
     }
 
     /**
-     * @return \stdClass[]
+     * @return array[]
      */
     public function getLastResult()
     {

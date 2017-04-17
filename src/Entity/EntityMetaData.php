@@ -46,6 +46,16 @@ class EntityMetaData
     }
 
     /**
+     * @param string $name
+     *
+     * @return OrmProperty|null
+     */
+    public function getColumnByPropertyName($name)
+    {
+        return !empty($this->columns[$name]) ? $this->columns[$name] : null;
+    }
+
+    /**
      * @param OrmProperty[] $columns
      *
      * @return $this
