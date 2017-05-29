@@ -59,6 +59,18 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
         parent::__construct($myParams);
     }
 
+    public function beforeUpdate()
+    {
+    }
+
+    public function beforeInsert()
+    {
+    }
+
+    public function beforeDelete()
+    {
+    }
+
     /**
      * @return array
      */

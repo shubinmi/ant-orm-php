@@ -82,8 +82,9 @@ class OrmRepository
      *
      * @return bool
      */
-    public function insert($entity, $asTransaction = true)
+    public function insert(OrmEntity $entity, $asTransaction = true)
     {
+        $entity->beforeInsert();
         return $this->make('insert', $entity, $asTransaction);
     }
 
@@ -93,8 +94,9 @@ class OrmRepository
      *
      * @return bool
      */
-    public function update($entity, $asTransaction = true)
+    public function update(OrmEntity $entity, $asTransaction = true)
     {
+        $entity->beforeUpdate();
         return $this->make('update', $entity, $asTransaction);
     }
 
@@ -104,8 +106,9 @@ class OrmRepository
      *
      * @return bool
      */
-    public function delete($entity, $asTransaction = true)
+    public function delete(OrmEntity $entity, $asTransaction = true)
     {
+        $entity->beforeDelete();
         return $this->make('delete', $entity, $asTransaction);
     }
 
