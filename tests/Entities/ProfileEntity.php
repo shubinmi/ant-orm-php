@@ -38,4 +38,10 @@ class ProfileEntity extends OrmEntity
      * @orm{"related":{"with":"\AntOrm\Tests\Entities\AddressEntity", "as":"hasMany", "onMyColumn":"user_id", "onHisColumn":"user_id"}}
      */
     public $addresses;
+
+    /**
+     * @var UserEntity
+     * @orm{"related":{"with":"\AntOrm\Tests\Entities\UserEntity", "as":"hasOne", "onMyColumn":"user_id", "onHisColumn":"id"}}
+     */
+    public $user;
 }

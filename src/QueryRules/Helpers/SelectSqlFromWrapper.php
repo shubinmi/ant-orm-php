@@ -17,6 +17,9 @@ class SelectSqlFromWrapper
         $relatedWrappers = [];
         $tableName       = $wrapper->getMetaData()->getTable()->getName();
         $prefix          = ($selectPrefix ?: $tableName) . $separator;
+        if (!$parts->getRootTable()) {
+            $parts->setRootTable($tableName);
+        }
         $parts->addSelect(
             "CONCAT(`{$tableName}`.`" .
             implode(
@@ -34,15 +37,19 @@ class SelectSqlFromWrapper
             }
             $relatedWrapper = EntityPreparer::getWrapper($propertyMeta->getRelated()->getWith());
             $joinTableName  = $relatedWrapper->getMetaData()->getTable()->getName();
-
+            if ($parts->hasJoin($joinTableName) || $joinTableName == $parts->getRootTable()) {
+                continue;
+            }
             $relatedWrappers[$prefix . $propertyMeta->getName()] = $relatedWrapper;
             if ($propertyMeta->getRelated()->getBy()) {
                 $mediator = $propertyMeta->getRelated()->getBy();
-                $parts->addJoin(
+                $parts->addNotExistedJoin(
+                    $joinTableName,
                     "LEFT JOIN ( SELECT `{$joinTableName}`.*, `{$mediator->getTable()}`.`{$mediator->getMyColumn()}` FROM `{$joinTableName}`, `{$mediator->getTable()}` WHERE `{$mediator->getTable()}`.`{$mediator->getRelatedColumn()}` = `{$joinTableName}`.`{$propertyMeta->getRelated()->getOnHisColumn()}`) as `{$joinTableName}` ON `{$joinTableName}`.`{$mediator->getMyColumn()}` = `{$tableName}`.`{$propertyMeta->getRelated()->getOnMyColumn()}`"
                 );
             } else {
-                $parts->addJoin(
+                $parts->addNotExistedJoin(
+                    $joinTableName,
                     "LEFT JOIN `{$joinTableName}` ON `{$joinTableName}`.`{$propertyMeta->getRelated()->getOnHisColumn()}` = `{$tableName}`.`{$propertyMeta->getRelated()->getOnMyColumn()}`"
                 );
             }

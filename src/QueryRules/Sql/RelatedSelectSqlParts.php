@@ -15,6 +15,11 @@ class RelatedSelectSqlParts
     private $joins = [];
 
     /**
+     * @var string
+     */
+    private $rootTable;
+
+    /**
      * @return \string[]
      */
     public function getSelects()
@@ -71,6 +76,51 @@ class RelatedSelectSqlParts
     public function addJoin($join)
     {
         $this->joins[] = $join;
+        return $this;
+    }
+
+    /**
+     * @param string $key
+     * @param string $join
+     *
+     * @return $this
+     */
+    public function addNotExistedJoin($key, $join)
+    {
+        if (isset($this->joins[$key])) {
+            return $this;
+        }
+        $this->joins[$key] = $join;
+
+        return $this;
+    }
+
+    /**
+     * @param string $key
+     *
+     * @return bool
+     */
+    public function hasJoin($key)
+    {
+        return isset($this->joins[$key]);
+    }
+
+    /**
+     * @return string
+     */
+    public function getRootTable()
+    {
+        return $this->rootTable;
+    }
+
+    /**
+     * @param string $rootTable
+     *
+     * @return $this
+     */
+    public function setRootTable($rootTable)
+    {
+        $this->rootTable = $rootTable;
         return $this;
     }
 }
