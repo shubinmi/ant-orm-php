@@ -8,6 +8,11 @@ use AntOrm\Storage\OrmStorage;
 
 class OrmRepository
 {
+    const OPERATION_SELECT = 'select';
+    const OPERATION_INSERT = 'insert';
+    const OPERATION_UPDATE = 'update';
+    const OPERATION_DELETE = 'delete';
+
     /**
      * @var OrmStorage
      */
@@ -73,7 +78,7 @@ class OrmRepository
         $entity                     = new $entityClass();
         $entity->antOrmSearchParams = $searchParams;
 
-        return $this->exec('select', $entity);
+        return $this->exec(self::OPERATION_SELECT, $entity);
     }
 
     /**
@@ -85,7 +90,10 @@ class OrmRepository
     public function insert(OrmEntity $entity, $asTransaction = true)
     {
         $entity->beforeInsert();
-        return $this->make('insert', $entity, $asTransaction);
+        $wasSuccess = $this->make(self::OPERATION_INSERT, $entity, $asTransaction);
+        $entity->afterInsert($wasSuccess);
+
+        return $wasSuccess;
     }
 
     /**
@@ -97,7 +105,10 @@ class OrmRepository
     public function update(OrmEntity $entity, $asTransaction = true)
     {
         $entity->beforeUpdate();
-        return $this->make('update', $entity, $asTransaction);
+        $wasSuccess = $this->make(self::OPERATION_UPDATE, $entity, $asTransaction);
+        $entity->afterUpdate($wasSuccess);
+
+        return $wasSuccess;
     }
 
     /**
@@ -109,7 +120,29 @@ class OrmRepository
     public function delete(OrmEntity $entity, $asTransaction = true)
     {
         $entity->beforeDelete();
-        return $this->make('delete', $entity, $asTransaction);
+        $wasSuccess = $this->make(self::OPERATION_DELETE, $entity, $asTransaction);
+        $entity->afterDelete($wasSuccess);
+
+        return $wasSuccess;
+    }
+
+    /**
+     * @param string    $operation
+     * @param OrmEntity $entity
+     * @param bool      $asTransaction
+     */
+    public function beforeMake($operation, OrmEntity $entity, $asTransaction)
+    {
+    }
+
+    /**
+     * @param string    $operation
+     * @param OrmEntity $entity
+     * @param bool      $asTransaction
+     * @param bool      $wasSuccess
+     */
+    public function afterMake($operation, OrmEntity $entity, $asTransaction, $wasSuccess)
+    {
     }
 
     /**
@@ -121,16 +154,22 @@ class OrmRepository
      */
     protected function make($operation, OrmEntity $entity, $isTransaction)
     {
+        $this->beforeMake($operation, $entity, $isTransaction);
         if ($this->storage->onTransaction()) {
-            return $this->exec($operation, $entity);
+            $result = $this->exec($operation, $entity);
+            $this->afterMake($operation, $entity, $isTransaction, $result);
+            return $result;
         }
         if ($isTransaction && !$this->startTransaction()) {
+            $this->afterMake($operation, $entity, $isTransaction, false);
             return false;
         }
         $result = $this->exec($operation, $entity);
         if ($isTransaction && !$result = $this->endTransaction()) {
+            $this->afterMake($operation, $entity, $isTransaction, false);
             return false;
         }
+        $this->afterMake($operation, $entity, $isTransaction, $result);
 
         return $result;
     }

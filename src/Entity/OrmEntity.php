@@ -72,6 +72,27 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
     }
 
     /**
+     * @param bool $wasSuccess
+     */
+    public function afterUpdate($wasSuccess = true)
+    {
+    }
+
+    /**
+     * @param bool $wasSuccess
+     */
+    public function afterInsert($wasSuccess = true)
+    {
+    }
+
+    /**
+     * @param bool $wasSuccess
+     */
+    public function afterDelete($wasSuccess = true)
+    {
+    }
+
+    /**
      * @return array
      */
     public function toArray()
