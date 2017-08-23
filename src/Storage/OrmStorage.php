@@ -97,6 +97,34 @@ class OrmStorage implements CrudDbInterface
     }
 
     /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function upsert(EntityWrapper $wrapper)
+    {
+        if (!$this->adapter->upsert($wrapper)) {
+            return false;
+        }
+
+        return $this->sameForRelatedEntities('upsert', $wrapper);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function save(EntityWrapper $wrapper)
+    {
+        if (!$this->adapter->save($wrapper)) {
+            return false;
+        }
+
+        return $this->sameForRelatedEntities('save', $wrapper);
+    }
+
+    /**
      * @param string        $method
      * @param EntityWrapper $wrapper
      *
@@ -105,22 +133,23 @@ class OrmStorage implements CrudDbInterface
     public function sameForRelatedEntities($method, EntityWrapper $wrapper)
     {
         $properties = $wrapper->getPreparedProperties();
+        $result     = true;
         foreach ($properties as $property) {
             if (!isset($property->value) || !$property->metaData->getRelated()) {
                 continue;
             }
             if ($property->value instanceof OrmEntity) {
-                return $this->$method($this->getLinkedWrapper($wrapper, $property->value));
+                $result = $result && $this->$method($this->getLinkedWrapper($wrapper, $property->value));
             } elseif (is_array($property->value)) {
                 foreach ($property->value as $item) {
                     if ($item instanceof OrmEntity) {
-                        return $this->$method($this->getLinkedWrapper($wrapper, $item));
+                        $result = $result && $this->$method($this->getLinkedWrapper($wrapper, $item));
                     }
                 }
             }
         }
 
-        return true;
+        return $result;
     }
 
     /**

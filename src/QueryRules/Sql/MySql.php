@@ -34,79 +34,45 @@ class MySql implements CrudDbInterface
      *
      * @return QueryStructure
      */
+    public function upsert(EntityWrapper $wrapper)
+    {
+        return $this->extendedInsert($wrapper, true);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return QueryStructure
+     */
+    public function save(EntityWrapper $wrapper)
+    {
+        return new QueryStructure();
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return QueryStructure
+     */
     public function insert(EntityWrapper $wrapper)
     {
-        $query       = new QueryStructure();
-        $properties  = $wrapper->getPreparedProperties();
-        $queryValues = $queryColumns = [];
-        /** @var QueryStructure[] $mediators */
-        $mediators = [];
-        foreach ($properties as $property) {
-            /** @var EntityProperty $property */
-            if (
-                (!isset($property->value) && !$property->linkedWrapper)
-                || $property->metaData->getRelated()
-            ) {
-                continue;
-            }
-            if ($property->linkedWrapper) {
-                list(
-                    $queryForColumn, $queryForMediator
-                    ) = $this->getLinkedInsertColumnOrMediator($property, $wrapper);
-                if ($queryForMediator) {
-                    $mediators[] = $queryForMediator;
-                    continue;
-                }
-                if (!$queryForColumn) {
-                    continue;
-                }
-                $query->setBindParams(
-                    array_merge(
-                        $query->getBindParams(), $queryForColumn->getBindParams()
-                    )
-                );
-                $query->setBindPatterns(
-                    array_merge(
-                        $query->getBindPatterns(), $queryForColumn->getBindPatterns()
-                    )
-                );
-                $queryValues[] = "({$queryForColumn->getQuery()})";
-            } else {
-                $query->addBindParam($property->value);
-                $query->addBindPattern($property->getBindTypePattern());
-                $queryValues[] = '?';
-            }
-            $queryColumns[] = $property->metaData->getColumn();
-        }
-        $queryColumns = implode('`,`', $queryColumns);
-        $queryValues  = implode(',', $queryValues);
-        if (!empty($queryColumns)) {
-            $queryColumns = '`' . $queryColumns . '`';
-        }
-        $tableName = $wrapper->getMetaData()->getTable()->getName();
-        /** @noinspection SqlNoDataSourceInspection */
-        $sql = "INSERT INTO `{$tableName}` ({$queryColumns}) VALUES ({$queryValues})";
-        $query->setQuery($sql);
-        if (!empty($mediators)) {
-            $query = $this->mergeQueries(array_merge([$query], $mediators));
-        }
-
-        return $query;
+        return $this->extendedInsert($wrapper);
     }
 
     /**
      * @param EntityProperty $entityProperty
      * @param EntityWrapper  $wrapper
+     * @param bool           $ignoreDuplicate
      *
      * @return QueryStructure[]
      */
     public function getLinkedInsertColumnOrMediator(
-        EntityProperty $entityProperty, EntityWrapper $wrapper
+        EntityProperty $entityProperty, EntityWrapper $wrapper, $ignoreDuplicate = false
     ) {
         $hisProperties     = $entityProperty->linkedWrapper->getPreparedProperties();
         $hisTable          = $entityProperty->linkedWrapper->getMetaData()->getTable()->getName();
         $myTable           = $wrapper->getMetaData()->getTable()->getName();
-        $queryColumn       = new QueryStructure();
+        $queryRootColumn   = new QueryStructure();
         $hisSelectColumn   = '';
         $mySelectColumn    = '';
         $where             = '';
@@ -133,8 +99,8 @@ class MySql implements CrudDbInterface
             if (!isset($property->value) || $property->metaData->getRelated()) {
                 continue;
             }
-            $queryColumn->addBindParam($property->value);
-            $queryColumn->addBindPattern($property->getBindTypePattern());
+            $queryRootColumn->addBindParam($property->value);
+            $queryRootColumn->addBindPattern($property->getBindTypePattern());
             if ($where) {
                 $where .= ' AND ';
             }
@@ -147,9 +113,9 @@ class MySql implements CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql =
             "SELECT `{$hisSelectColumn}` FROM `{$hisTable}` WHERE {$where} ORDER BY `{$hisSelectColumn}` DESC LIMIT 1";
-        $queryColumn->setQuery($sql);
+        $queryRootColumn->setQuery($sql);
         if (empty($mediatorTable)) {
-            return [$queryColumn, null];
+            return [$queryRootColumn, null];
         }
         $queryMediator = new QueryStructure();
         $where         = '';
@@ -168,16 +134,20 @@ class MySql implements CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sqlMyColumn  =
             "SELECT `{$mySelectColumn}` FROM `{$myTable}` WHERE {$where} ORDER BY `{$mySelectColumn}` DESC LIMIT 1";
-        $sqlHisColumn = $queryColumn->getQuery();
+        $sqlHisColumn = $queryRootColumn->getQuery();
+        $ignore       = '';
+        if ($ignoreDuplicate) {
+            $ignore = 'IGNORE';
+        }
         /** @noinspection SqlNoDataSourceInspection */
         $queryMediator->setQuery(
-            "INSERT INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
+            "INSERT {$ignore} INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
         );
         $queryMediator->setBindPatterns(
-            array_merge($queryMediator->getBindPatterns(), $queryColumn->getBindPatterns())
+            array_merge($queryMediator->getBindPatterns(), $queryRootColumn->getBindPatterns())
         );
         $queryMediator->setBindParams(
-            array_merge($queryMediator->getBindParams(), $queryColumn->getBindParams())
+            array_merge($queryMediator->getBindParams(), $queryRootColumn->getBindParams())
         );
 
         return [null, $queryMediator];
@@ -319,6 +289,76 @@ class MySql implements CrudDbInterface
         }
 
         return $result;
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     * @param bool          $ignoreDuplicate
+     *
+     * @return QueryStructure
+     */
+    private function extendedInsert(EntityWrapper $wrapper, $ignoreDuplicate = false)
+    {
+        $query       = new QueryStructure();
+        $properties  = $wrapper->getPreparedProperties();
+        $queryValues = $queryColumns = [];
+        /** @var QueryStructure[] $mediators */
+        $mediators = [];
+        foreach ($properties as $property) {
+            /** @var EntityProperty $property */
+            if (
+                (!isset($property->value) && !$property->linkedWrapper)
+                || $property->metaData->getRelated()
+            ) {
+                continue;
+            }
+            if ($property->linkedWrapper) {
+                list(
+                    $queryForColumn, $queryForMediator
+                    ) = $this->getLinkedInsertColumnOrMediator($property, $wrapper, $ignoreDuplicate);
+                if ($queryForMediator) {
+                    $mediators[] = $queryForMediator;
+                    continue;
+                }
+                if (!$queryForColumn) {
+                    continue;
+                }
+                $query->setBindParams(
+                    array_merge(
+                        $query->getBindParams(), $queryForColumn->getBindParams()
+                    )
+                );
+                $query->setBindPatterns(
+                    array_merge(
+                        $query->getBindPatterns(), $queryForColumn->getBindPatterns()
+                    )
+                );
+                $queryValues[] = "({$queryForColumn->getQuery()})";
+            } else {
+                $query->addBindParam($property->value);
+                $query->addBindPattern($property->getBindTypePattern());
+                $queryValues[] = '?';
+            }
+            $queryColumns[] = $property->metaData->getColumn();
+        }
+        $queryColumns = implode('`,`', $queryColumns);
+        $queryValues  = implode(',', $queryValues);
+        if (!empty($queryColumns)) {
+            $queryColumns = '`' . $queryColumns . '`';
+        }
+        $tableName = $wrapper->getMetaData()->getTable()->getName();
+        $ignore    = '';
+        if ($ignoreDuplicate) {
+            $ignore = 'IGNORE';
+        }
+        /** @noinspection SqlNoDataSourceInspection */
+        $sql = "INSERT {$ignore} INTO `{$tableName}` ({$queryColumns}) VALUES ({$queryValues})";
+        $query->setQuery($sql);
+        if (!empty($mediators)) {
+            $query = $this->mergeQueries(array_merge([$query], $mediators));
+        }
+
+        return $query;
     }
 
     /**

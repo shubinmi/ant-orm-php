@@ -29,6 +29,6 @@ php ./tets/Mysql/init/init.php -h 127.0.0.1 -u root -p root
 - Run tests by
 
 ```bash
-sh ./vendor/phpunit/phpunit/phpunit --bootstrap ./tests/Mysql/boot.php ./tests/Mysql/
+./vendor/phpunit/phpunit/phpunit --bootstrap ./tests/Mysql/boot.php ./tests/Mysql/
 ```
 

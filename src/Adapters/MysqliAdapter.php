@@ -209,6 +209,29 @@ class MysqliAdapter implements AdapterInterface
      *
      * @return bool
      */
+    public function upsert(EntityWrapper $wrapper)
+    {
+        $queryIgnoreInsert = $this->sqlGenerator->upsert($wrapper);
+        $queryUpdate       = $this->sqlGenerator->update($wrapper);
+        return $this->query($queryIgnoreInsert) && $this->query($queryUpdate);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
+    public function save(EntityWrapper $wrapper)
+    {
+        $query = $this->sqlGenerator->save($wrapper);
+        return $this->query($query);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
     public function update(EntityWrapper $wrapper)
     {
         $query = $this->sqlGenerator->update($wrapper);
@@ -224,53 +247,6 @@ class MysqliAdapter implements AdapterInterface
     {
         $query = $this->sqlGenerator->delete($wrapper);
         return $this->query($query);
-    }
-
-    /**
-     * @param QueryStructure $query
-     *
-     * @throws \Exception
-     */
-    private function prepareQuery(QueryStructure $query)
-    {
-        $queryParts = explode(';', $query->getQuery());
-        $queryParts = array_filter($queryParts);
-
-        foreach ($queryParts as $sql) {
-            $tempSql = strtolower(str_replace(' ', '', $sql));
-            if ($tempSql == 'commit') {
-                $this->transactionWaitingCommit = true;
-                continue;
-            }
-            if ($tempSql == 'starttransaction') {
-                $this->adapter->autocommit(false);
-                continue;
-            }
-            try {
-                $stmt = $this->adapter->prepare($sql);
-            } catch (\Exception $e) {
-                throw new \Exception('Error on mysqli::prepare for : ' . $sql . ' ; ' . $e->getMessage());
-            }
-            if ($stmt === false) {
-                throw new \Exception('Incorrect sql for mysqli::prepare : ' . $sql);
-            }
-            if (!empty($query->getBindParams())) {
-                $params = array_merge(
-                    [implode('', $query->getBindPatterns())],
-                    $query->getBindParams()
-                );
-                call_user_func_array(
-                    [$stmt, 'bind_param'],
-                    array_map(
-                        function &(&$value) {
-                            return $value;
-                        },
-                        $params
-                    )
-                );
-            }
-            $this->stmt[] = $stmt;
-        }
     }
 
     /**
@@ -364,6 +340,53 @@ class MysqliAdapter implements AdapterInterface
                 @$this->adapter->close();
             }
         } catch (\Exception $e) {
+        }
+    }
+
+    /**
+     * @param QueryStructure $query
+     *
+     * @throws \Exception
+     */
+    private function prepareQuery(QueryStructure $query)
+    {
+        $queryParts = explode(';', $query->getQuery());
+        $queryParts = array_filter($queryParts);
+
+        foreach ($queryParts as $sql) {
+            $tempSql = strtolower(str_replace(' ', '', $sql));
+            if ($tempSql == 'commit') {
+                $this->transactionWaitingCommit = true;
+                continue;
+            }
+            if ($tempSql == 'starttransaction') {
+                $this->adapter->autocommit(false);
+                continue;
+            }
+            try {
+                $stmt = $this->adapter->prepare($sql);
+            } catch (\Exception $e) {
+                throw new \Exception('Error on mysqli::prepare for : ' . $sql . ' ; ' . $e->getMessage());
+            }
+            if ($stmt === false) {
+                throw new \Exception('Incorrect sql for mysqli::prepare : ' . $sql);
+            }
+            if (!empty($query->getBindParams())) {
+                $params = array_merge(
+                    [implode('', $query->getBindPatterns())],
+                    $query->getBindParams()
+                );
+                call_user_func_array(
+                    [$stmt, 'bind_param'],
+                    array_map(
+                        function &(&$value) {
+                            return $value;
+                        },
+                        $params
+                    )
+                );
+            }
+            $this->stmt[] = $stmt;
         }
     }
 }
