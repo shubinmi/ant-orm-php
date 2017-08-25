@@ -111,7 +111,13 @@ class MysqliAdapter implements AdapterInterface
         $transaction = new TransactionQueryList();
         $transaction->addQuery((new QueryStructure())->setQuery('start transaction'));
         foreach ($this->queries as $query) {
-            $transaction->addQuery($query);
+            if ($query instanceof TransactionQueryList) {
+                foreach ($query->getQueries() as $structure) {
+                    $transaction->addQuery($structure);
+                }
+            } else {
+                $transaction->addQuery($query);
+            }
         }
         $transaction->addQuery((new QueryStructure())->setQuery('commit'));
         $this->onTransaction = false;
@@ -376,15 +382,24 @@ class MysqliAdapter implements AdapterInterface
                     [implode('', $query->getBindPatterns())],
                     $query->getBindParams()
                 );
-                call_user_func_array(
-                    [$stmt, 'bind_param'],
-                    array_map(
-                        function &(&$value) {
-                            return $value;
-                        },
-                        $params
-                    )
-                );
+                try {
+                    call_user_func_array(
+                        [$stmt, 'bind_param'],
+                        array_map(
+                            function &(&$value) {
+                                return $value;
+                            },
+                            $params
+                        )
+                    );
+                } catch (\Exception $e) {
+                    throw new \Exception(
+                        'Incorrect sql for mysqli::bind_param : ' . $sql
+                        . PHP_EOL . 'Bind patterns: ' . implode(', ', $query->getBindPatterns())
+                        . PHP_EOL . 'Bind values: ' . implode(', ', $query->getBindParams())
+                        . PHP_EOL . $e->getMessage()
+                    );
+                }
             }
             $this->stmt[] = $stmt;
         }

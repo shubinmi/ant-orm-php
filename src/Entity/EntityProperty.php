@@ -35,7 +35,7 @@ class EntityProperty
     /**
      * @var EntityWrapper
      */
-    public $linkedWrapper;
+    public $relatedEntityWrapper;
 
     /**
      * @param string $name

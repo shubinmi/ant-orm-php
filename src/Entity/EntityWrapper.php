@@ -20,6 +20,11 @@ class EntityWrapper
     protected $preparedProperties;
 
     /**
+     * @var EntityWrapper
+     */
+    protected $myParent;
+
+    /**
      * @return OrmEntity
      */
     public function getEntity()
@@ -73,6 +78,25 @@ class EntityWrapper
     public function setPreparedProperties(array $preparedProperties)
     {
         $this->preparedProperties = $preparedProperties;
+        return $this;
+    }
+
+    /**
+     * @return EntityWrapper
+     */
+    public function getMyParent()
+    {
+        return $this->myParent;
+    }
+
+    /**
+     * @param EntityWrapper $myParent
+     *
+     * @return $this
+     */
+    public function setMyParent($myParent)
+    {
+        $this->myParent = $myParent;
         return $this;
     }
 }

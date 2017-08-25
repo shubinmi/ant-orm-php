@@ -139,11 +139,11 @@ class OrmStorage implements CrudDbInterface
                 continue;
             }
             if ($property->value instanceof OrmEntity) {
-                $result = $result && $this->$method($this->getLinkedWrapper($wrapper, $property->value));
+                $result = $result && $this->$method($this->getRelatedEntityWrapper($wrapper, $property->value));
             } elseif (is_array($property->value)) {
                 foreach ($property->value as $item) {
                     if ($item instanceof OrmEntity) {
-                        $result = $result && $this->$method($this->getLinkedWrapper($wrapper, $item));
+                        $result = $result && $this->$method($this->getRelatedEntityWrapper($wrapper, $item));
                     }
                 }
             }
@@ -153,15 +153,15 @@ class OrmStorage implements CrudDbInterface
     }
 
     /**
-     * @param EntityWrapper $wrapper
-     * @param OrmEntity     $entity
+     * @param EntityWrapper $myWrapper
+     * @param OrmEntity     $myRelatedEntity
      *
      * @return EntityWrapper
      */
-    private function getLinkedWrapper(EntityWrapper $wrapper, OrmEntity $entity)
+    private function getRelatedEntityWrapper(EntityWrapper $myWrapper, OrmEntity $myRelatedEntity)
     {
-        $relatedWrapper = EntityPreparer::getWrapper($entity);
-        WrappersLinking::connect($wrapper, $relatedWrapper);
+        $relatedWrapper = EntityPreparer::getWrapper($myRelatedEntity);
+        WrappersLinking::connect($myWrapper, $relatedWrapper);
         return $relatedWrapper;
     }
 
@@ -186,6 +186,12 @@ class OrmStorage implements CrudDbInterface
      */
     public function delete(EntityWrapper $wrapper)
     {
+        /**
+         * if many2many then we cannot remove dictionary rows
+         */
+        if ($wrapper->getMyParent()) {
+            return true;
+        }
         if (!$this->sameForRelatedEntities('delete', $wrapper)) {
             return false;
         }
