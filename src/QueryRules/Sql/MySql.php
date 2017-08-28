@@ -62,16 +62,18 @@ class MySql implements CrudDbInterface
     }
 
     /**
+     * @param bool          $linking
      * @param EntityWrapper $myWrapper
      * @param bool          $ignoreDuplicate
      *
      * @return QueryStructure|null
      */
-    public function getMediatorForInsert(EntityWrapper $myWrapper, $ignoreDuplicate = false)
+    public function getMany2ManyFor($linking = true, EntityWrapper $myWrapper, $ignoreDuplicate = false)
     {
         if (!$parentProperty = WrappersLinking::getRelatedParentProperty($myWrapper)) {
             return null;
         }
+
         if (!$parentProperty->metaData->getRelated() || !$parentProperty->metaData->getRelated()->getBy()) {
             return null;
         }
@@ -122,10 +124,17 @@ class MySql implements CrudDbInterface
         if ($ignoreDuplicate) {
             $ignore = 'IGNORE';
         }
-        /** @noinspection SqlNoDataSourceInspection */
-        $queryMediator->setQuery(
-             "INSERT {$ignore} INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
-        );
+        if ($linking) {
+            /** @noinspection SqlNoDataSourceInspection */
+            $queryMediator->setQuery(
+                "INSERT {$ignore} INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
+            );
+        } else {
+            /** @noinspection SqlNoDataSourceInspection */
+            $queryMediator->setQuery(
+                "DELETE FROM `{$mediatorTable}` WHERE `{$mediatorMyColumn}` = ({$sqlMyColumn}) AND `{$mediatorHisColumn}` = ({$sqlHisColumn})"
+            );
+        }
 
         return $queryMediator;
     }
@@ -316,9 +325,10 @@ class MySql implements CrudDbInterface
         $query       = new QueryStructure();
         $properties  = $wrapper->getPreparedProperties();
         $queryValues = $queryColumns = [];
-        $mediator    = null;
+        $mediators   = [];
         if ($wrapper->getMyParent()) {
-            $mediator        = $this->getMediatorForInsert($wrapper, $ignoreDuplicate);
+            $mediators[]     = $this->getMany2ManyFor(false, $wrapper);
+            $mediators[]     = $this->getMany2ManyFor(true, $wrapper, $ignoreDuplicate);
             $ignoreDuplicate = true;
         }
         /** @var EntityProperty $property */
@@ -365,11 +375,14 @@ class MySql implements CrudDbInterface
         /** @noinspection SqlNoDataSourceInspection */
         $sql = "INSERT {$ignore} INTO `{$tableName}` ({$queryColumns}) VALUES ({$queryValues})";
         $query->setQuery($sql);
-        if ($mediator) {
-            $transaction = new TransactionQueryList();
-            $query       = $transaction->addQuery($query)->addQuery($mediator);
+        if (empty($mediators)) {
+            return $query;
         }
-
+        $transaction = new TransactionQueryList();
+        $query       = $transaction->addQuery($query);
+        foreach ($mediators as $mediator) {
+            $query->addQuery($mediator);
+        }
         return $query;
     }
 
