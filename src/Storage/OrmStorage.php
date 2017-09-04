@@ -10,6 +10,7 @@ use AntOrm\Entity\Helpers\EntityPreparer;
 use AntOrm\Entity\Helpers\WrappersLinking;
 use AntOrm\Entity\OrmEntity;
 use AntOrm\QueryRules\CrudDbInterface;
+use AntOrm\Storage\Singleton\QueriesQueueForDeleteStorage;
 
 class OrmStorage implements CrudDbInterface
 {
@@ -55,21 +56,6 @@ class OrmStorage implements CrudDbInterface
         }
         $this->adapter             = $adapter;
         $this->availableOperations = get_class_methods('AntOrm\QueryRules\CrudDbInterface');
-    }
-
-    /**
-     * @param string        $operation
-     * @param EntityWrapper $wrapper
-     *
-     * @return bool
-     * @throws \Exception
-     */
-    public function make($operation, EntityWrapper $wrapper)
-    {
-        if (!in_array($operation, $this->availableOperations)) {
-            throw new \Exception("Wrong operation: '{$operation}'");
-        }
-        return $this->$operation($wrapper);
     }
 
     /**
@@ -125,47 +111,6 @@ class OrmStorage implements CrudDbInterface
     }
 
     /**
-     * @param string        $method
-     * @param EntityWrapper $wrapper
-     *
-     * @return bool
-     */
-    public function sameForRelatedEntities($method, EntityWrapper $wrapper)
-    {
-        $properties = $wrapper->getPreparedProperties();
-        $result     = true;
-        foreach ($properties as $property) {
-            if (!isset($property->value) || !$property->metaData->getRelated()) {
-                continue;
-            }
-            if ($property->value instanceof OrmEntity) {
-                $result = $result && $this->$method($this->getRelatedEntityWrapper($wrapper, $property->value));
-            } elseif (is_array($property->value)) {
-                foreach ($property->value as $item) {
-                    if ($item instanceof OrmEntity) {
-                        $result = $result && $this->$method($this->getRelatedEntityWrapper($wrapper, $item));
-                    }
-                }
-            }
-        }
-
-        return $result;
-    }
-
-    /**
-     * @param EntityWrapper $myWrapper
-     * @param OrmEntity     $myRelatedEntity
-     *
-     * @return EntityWrapper
-     */
-    private function getRelatedEntityWrapper(EntityWrapper $myWrapper, OrmEntity $myRelatedEntity)
-    {
-        $relatedWrapper = EntityPreparer::getWrapper($myRelatedEntity);
-        WrappersLinking::connect($myWrapper, $relatedWrapper);
-        return $relatedWrapper;
-    }
-
-    /**
      * @param EntityWrapper $wrapper
      *
      * @return bool
@@ -186,14 +131,18 @@ class OrmStorage implements CrudDbInterface
      */
     public function delete(EntityWrapper $wrapper)
     {
-        /**
-         * if many2many then we cannot remove dictionary rows
-         */
-        if ($wrapper->getMyParent()) {
+        if (QueriesQueueForDeleteStorage::has($wrapper->getEntity())) {
             return true;
         }
-        if (!$this->sameForRelatedEntities('delete', $wrapper)) {
+        QueriesQueueForDeleteStorage::add($wrapper->getEntity());
+        if ($wrapper->getMyParent()) {
+            return $this->adapter->delete($wrapper);
+        }
+        if (!$this->sameForRelatedEntities('delete', $wrapper, false)) {
             return false;
+        }
+        if (QueriesQueueForDeleteStorage::itFirst($wrapper->getEntity())) {
+            QueriesQueueForDeleteStorage::clear();
         }
 
         return $this->adapter->delete($wrapper);
@@ -229,5 +178,69 @@ class OrmStorage implements CrudDbInterface
     public function endTransactions()
     {
         return $this->adapter->endTransaction();
+    }
+
+    /**
+     * @param string        $operation
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     * @throws \Exception
+     */
+    public function make($operation, EntityWrapper $wrapper)
+    {
+        if (!in_array($operation, $this->availableOperations)) {
+            throw new \Exception("Wrong operation: '{$operation}'");
+        }
+        return $this->$operation($wrapper);
+    }
+
+    /**
+     * @param string        $method
+     * @param EntityWrapper $wrapper
+     * @param bool          $useValuesInsteadOfProperties
+     *
+     * @return bool
+     */
+    private function sameForRelatedEntities($method, EntityWrapper $wrapper, $useValuesInsteadOfProperties = true)
+    {
+        $properties = $wrapper->getPreparedProperties();
+        $result     = true;
+        foreach ($properties as $property) {
+            if ($useValuesInsteadOfProperties && !isset($property->value)) {
+                continue;
+            }
+            if (!$property->metaData->getRelated()) {
+                continue;
+            }
+            $myChild = $property->value;
+            if (!$useValuesInsteadOfProperties && empty($myChild)) {
+                $myChild = $property->metaData->getRelated()->getWith();
+            }
+            if ($myChild instanceof OrmEntity) {
+                $result = $result && $this->$method($this->getChildWrapper($wrapper, $myChild));
+            } elseif (is_array($myChild)) {
+                foreach ($myChild as $childEntity) {
+                    if ($childEntity instanceof OrmEntity) {
+                        $result = $result && $this->$method($this->getChildWrapper($wrapper, $childEntity));
+                    }
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param EntityWrapper $myWrapper
+     * @param OrmEntity     $myChildEntity
+     *
+     * @return EntityWrapper
+     */
+    private function getChildWrapper(EntityWrapper $myWrapper, OrmEntity $myChildEntity)
+    {
+        $childWrapper = EntityPreparer::getWrapper($myChildEntity);
+        WrappersLinking::connect($myWrapper, $childWrapper);
+        return $childWrapper;
     }
 }

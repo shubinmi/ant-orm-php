@@ -19,6 +19,7 @@ class BasicTest extends TestCase
         $repo  = new OrmRepository(clone $storage, UserEntity::className());
         $users = $repo->find();
         $this->assertContainsOnlyInstancesOf(UserEntity::class, $users);
+        $this->assertCount(3, $users);
         $users = $repo->find(['id' => 1]);
         $this->assertCount(1, $users);
         /** @var UserEntity $user */

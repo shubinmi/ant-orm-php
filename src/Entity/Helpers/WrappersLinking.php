@@ -38,7 +38,7 @@ class WrappersLinking
                 if ($fromProperty->metaData->getRelated()->getOnHisColumn() !== $toProperty->metaData->getColumn()) {
                     continue;
                 }
-                $toProperty->relatedEntityWrapper = $me;
+                $toProperty->parentEntityWrapper = $me;
                 return;
             }
             $to->setMyParent($me);
@@ -50,13 +50,14 @@ class WrappersLinking
      *
      * @return EntityProperty|null
      */
-    public static function getRelatedParentProperty(EntityWrapper $wrapper)
+    public static function getRelatedParentPropertyForMany2Many(EntityWrapper $wrapper)
     {
         foreach ($wrapper->getMyParent()->getPreparedProperties() as $property) {
             if (
-                is_array($property->value)
-                && current($property->value) instanceof OrmEntity
-                && get_class(current($property->value)) == get_class($wrapper->getEntity())
+                $property->metaData->getRelated()
+                && $property->metaData->getRelated()->getBy()
+                && $property->metaData->getRelated()->getWith() instanceof OrmEntity
+                && get_class($property->metaData->getRelated()->getWith()) == get_class($wrapper->getEntity())
             ) {
                 return clone $property;
             }

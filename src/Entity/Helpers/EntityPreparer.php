@@ -82,7 +82,7 @@ class EntityPreparer
      *
      * @return OrmTable
      */
-    public static function getTableMeta(OrmEntity $entity, array $propertiesMetaData)
+    public static function getTableMeta(OrmEntity $entity, array &$propertiesMetaData)
     {
         $reflector = new \ReflectionClass($entity);
         $doc       = $reflector->getDocComment();
@@ -105,12 +105,18 @@ class EntityPreparer
                 $primaryPropertiesNames
             );
             $tableMeta->setPrimaryProperties($primaryPropertiesNames);
-
-            return $tableMeta;
         }
-        foreach ($propertiesMetaData as $propertyMeta) {
-            if ($propertyMeta->isPrimary()) {
+        foreach ($propertiesMetaData as &$propertyMeta) {
+            $isPropertyPrimaryInMeta = !empty(
+            array_intersect(
+                [$propertyMeta->getName(), $propertyMeta->getColumn()],
+                $tableMeta->getPrimaryProperties()
+            )
+            );
+            if ($propertyMeta->isPrimary() && !$isPropertyPrimaryInMeta) {
                 $tableMeta->addPrimaryProperty($propertyMeta->getName());
+            } elseif (!$propertyMeta->isPrimary() && $isPropertyPrimaryInMeta) {
+                $propertyMeta->setPrimary(true);
             }
         }
 
