@@ -90,11 +90,11 @@ class EntityPreparer
             $tableMeta = new OrmTable();
         }
         if ($entity->table) {
-            $tableMeta->setTable($entity->table);
+            $tableMeta->setName($entity->table);
         } elseif (!$tableMeta->getName()) {
             $tableName = get_class($entity);
             $tableName = end(explode('\\', $tableName));
-            $tableMeta->setTable(strtolower(trim($tableName)));
+            $tableMeta->setName(AnnotationParser::camelCaseToUnderscore($tableName));
         }
         $primaryPropertiesNames = $tableMeta->getPrimaryProperties();
         if (!empty($primaryPropertiesNames)) {

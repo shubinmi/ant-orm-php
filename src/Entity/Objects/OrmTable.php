@@ -29,7 +29,7 @@ class OrmTable extends ConstructFromArrayOrJson
      *
      * @return $this
      */
-    public function setTable($table)
+    public function setName($table)
     {
         $this->table = $table;
         return $this;

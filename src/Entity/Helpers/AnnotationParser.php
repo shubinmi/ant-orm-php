@@ -116,4 +116,20 @@ class AnnotationParser
         }
         return trim($ormDoc[1]);
     }
+
+    /**
+     * @param string $str
+     *
+     * @return string
+     */
+    public static function camelCaseToUnderscore($str)
+    {
+        return preg_replace_callback(
+            '/([A-Z])/',
+            function ($matches) {
+                return "_" . strtolower($matches[1]);
+            },
+            lcfirst(trim($str))
+        );
+    }
 }

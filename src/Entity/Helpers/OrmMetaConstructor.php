@@ -20,9 +20,7 @@ class OrmMetaConstructor
         }
         $meta->setName($property->name);
         if (!$meta->getColumn()) {
-            $meta->setColumn(
-                strtolower(trim($property->name))
-            );
+            $meta->setColumn(AnnotationParser::camelCaseToUnderscore($property->name));
         }
         if (!$related = $meta->getRelated()) {
             return $meta;
