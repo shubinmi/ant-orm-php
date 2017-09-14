@@ -30,6 +30,16 @@ class BasicTest extends TestCase
         $this->assertCount(2, $user->hobbies);
         $this->assertEquals('Fishing', current($user->hobbies)->name);
 
+        $users = $repo->find(['profile____userId' => 1]);
+        $this->assertCount(1, $users);
+        /** @var UserEntity $user */
+        $user = current($users);
+        $this->assertEquals('Oleg', $user->profile->firstName);
+        $this->assertCount(2, $user->profile->addresses);
+        $this->assertEquals(1, current($user->profile->addresses)->userId);
+        $this->assertCount(2, $user->hobbies);
+        $this->assertEquals('Fishing', current($user->hobbies)->name);
+
         return $repo;
     }
 

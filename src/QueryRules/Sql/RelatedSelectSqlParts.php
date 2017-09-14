@@ -10,6 +10,11 @@ class RelatedSelectSqlParts
     private $selects = [];
 
     /**
+     * @var array
+     */
+    private $selectedColumnsAliasMap = [];
+
+    /**
      * @var string[]
      */
     private $joins = [];
@@ -45,6 +50,10 @@ class RelatedSelectSqlParts
      */
     public function addSelect($select)
     {
+        if (strpos($select, ' as ') !== false) {
+            list($column, $alias) = explode(' as ', $select);
+            $this->addSelectedColumnAliaMap($column, $alias);
+        }
         $this->selects[] = $select;
         return $this;
     }
@@ -121,6 +130,28 @@ class RelatedSelectSqlParts
     public function setRootTable($rootTable)
     {
         $this->rootTable = $rootTable;
+        return $this;
+    }
+
+    /**
+     * @param string $alias
+     *
+     * @return string|null
+     */
+    public function findSelectedColumn($alias)
+    {
+        return empty($this->selectedColumnsAliasMap[$alias]) ? null : $this->selectedColumnsAliasMap[$alias];
+    }
+
+    /**
+     * @param string $column
+     * @param string $alias
+     *
+     * @return $this
+     */
+    private function addSelectedColumnAliaMap($column, $alias)
+    {
+        $this->selectedColumnsAliasMap[$alias] = $column;
         return $this;
     }
 }

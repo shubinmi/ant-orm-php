@@ -173,7 +173,7 @@ class MySql implements CrudDbInterface
                 }
                 if ($hasConnect && isset($val) && isset($bind)) {
                     $query = new QueryStructure();
-                    $where  = "`{$property->metaData->getColumn()}` = ?";
+                    $where = "`{$property->metaData->getColumn()}` = ?";
                     $query->addBindParam($val);
                     $query->addBindPattern($bind);
                     break;
@@ -508,7 +508,11 @@ class MySql implements CrudDbInterface
             $sql .= ' ' . $this->getQueryJoin($searchSql) . ' ';
         }
         $sql .= ' WHERE ';
-        $sql .= !$searchSql->where ? 1 : $this->getQueryWhere($wrapper, $searchSql->where, $queryStructure);
+        $sql .= !$searchSql->where
+            ? 1
+            : $this->getQueryWhere(
+                $selectParts, $wrapper, $searchSql->where, $queryStructure
+            );
         if ($searchSql->groupBy) {
             $sql .= ' GROUP BY ' . $searchSql->groupBy;
         }
@@ -585,15 +589,17 @@ class MySql implements CrudDbInterface
     }
 
     /**
-     * @param EntityWrapper  $wrapper
-     * @param array          $whereParams
-     * @param QueryStructure $queryStructure
-     * @param string         $logicOperator
+     * @param RelatedSelectSqlParts $selectParts
+     * @param EntityWrapper         $wrapper
+     * @param array                 $whereParams
+     * @param QueryStructure        $queryStructure
+     * @param string                $logicOperator
      *
      * @return string
      */
     private function getQueryWhere(
-        EntityWrapper $wrapper, array $whereParams, QueryStructure &$queryStructure, $logicOperator = 'AND'
+        RelatedSelectSqlParts $selectParts, EntityWrapper $wrapper,
+        array $whereParams, QueryStructure &$queryStructure, $logicOperator = 'AND'
     ) {
         $sql              = '';
         $iterateNumber    = 0;
@@ -601,11 +607,12 @@ class MySql implements CrudDbInterface
         foreach ($whereParams as $key => $param) {
             $iterateNumber++;
             if (in_array(strtolower($key), ['or', 'and']) && is_array($param)) {
-                $sql .= ' ( ' . $this->getQueryWhere($wrapper, $param, $queryStructure, $key) . ' ) ';
+                $sql .= ' ( ' . $this->getQueryWhere($selectParts, $wrapper, $param, $queryStructure, $key) . ' ) ';
             } elseif (is_array($param)) {
-                $sql .= ' ( ' . $this->getQueryWhere($wrapper, $param, $queryStructure, $logicOperator) . ' ) ';
+                $sql .= ' ( ' . $this->getQueryWhere($selectParts, $wrapper, $param, $queryStructure, $logicOperator)
+                    . ' ) ';
             } else {
-                $sql .= $this->getPartOfCondition($key, $param, $queryStructure, $wrapper);
+                $sql .= $this->getPartOfCondition($selectParts, $key, $param, $queryStructure, $wrapper);
             }
             if ($iterateNumber < $countWhereParams) {
                 $sql .= ' ' . $logicOperator . ' ';
@@ -616,16 +623,18 @@ class MySql implements CrudDbInterface
     }
 
     /**
-     * @param string         $columnNameWithCompareOperator
-     * @param string         $columnValue
-     * @param QueryStructure $queryStructure
+     * @param RelatedSelectSqlParts $selectParts
+     * @param string                $columnNameWithCompareOperator
+     * @param string                $columnValue
+     * @param QueryStructure        $queryStructure
      *
-     * @param EntityWrapper  $wrapper
+     * @param EntityWrapper         $wrapper
      *
      * @return string
      */
     private function getPartOfCondition(
-        $columnNameWithCompareOperator, $columnValue, QueryStructure &$queryStructure, EntityWrapper $wrapper
+        RelatedSelectSqlParts $selectParts, $columnNameWithCompareOperator,
+        $columnValue, QueryStructure &$queryStructure, EntityWrapper $wrapper
     ) {
         if (!$conditionParts = $this->getColumnNameAndCompareOperation($columnNameWithCompareOperator)) {
             return '';
@@ -633,7 +642,7 @@ class MySql implements CrudDbInterface
         $columnName          = $conditionParts['columnName'];
         $operator            = $conditionParts['compareOperator'];
         $escapedColumnName   = ColumnNameParser::getEscaped(
-            $columnName, $wrapper->getMetaData()->getTable()->getName()
+            $columnName, $wrapper->getMetaData()->getTable()->getName(), $selectParts
         );
         $comparisonOperators = ['in', 'is', 'is not', 'not in', 'strcmp', 'interval', 'least', 'not between'];
         if (in_array(strtolower($operator), $comparisonOperators)) {
@@ -662,8 +671,7 @@ class MySql implements CrudDbInterface
         $params     = explode(' ', trim($columnNameWithCompareOperator));
         $columnName = empty($params[0]) ? '' : $params[0];
         unset($params[0]);
-        $operator = empty($params[1]) ? '=' : implode(' ', $params);
-
+        $operator   = empty($params[1]) ? '=' : implode(' ', $params);
         $columnName = str_replace('`', '', $columnName);
 
         return [
