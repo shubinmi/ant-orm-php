@@ -103,7 +103,12 @@ class OrmStorage implements CrudDbInterface
      */
     public function save(EntityWrapper $wrapper)
     {
-        if (!$this->adapter->save($wrapper)) {
+        if (!$wrapper->getEntity()->oldParams) {
+            $result = $this->adapter->insert($wrapper);
+        } else {
+            $result = $this->adapter->update($wrapper);
+        }
+        if (!$result) {
             return false;
         }
 

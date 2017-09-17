@@ -46,16 +46,6 @@ class MySql implements CrudDbInterface
      *
      * @return QueryStructure
      */
-    public function save(EntityWrapper $wrapper)
-    {
-        return new QueryStructure();
-    }
-
-    /**
-     * @param EntityWrapper $wrapper
-     *
-     * @return QueryStructure
-     */
     public function insert(EntityWrapper $wrapper)
     {
         return $this->extendedInsert($wrapper);
@@ -221,9 +211,9 @@ class MySql implements CrudDbInterface
      *
      * @return QueryStructure|null
      */
-    private function linkMe(EntityWrapper $myWrapper)
+    public function unlinkMe(EntityWrapper $myWrapper)
     {
-        return $this->getMany2ManyFor(true, $myWrapper);
+        return $this->getMany2ManyFor(false, $myWrapper);
     }
 
     /**
@@ -231,9 +221,9 @@ class MySql implements CrudDbInterface
      *
      * @return QueryStructure|null
      */
-    private function unlinkMe(EntityWrapper $myWrapper)
+    private function linkMe(EntityWrapper $myWrapper)
     {
-        return $this->getMany2ManyFor(false, $myWrapper);
+        return $this->getMany2ManyFor(true, $myWrapper);
     }
 
     /**

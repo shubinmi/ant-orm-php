@@ -227,17 +227,6 @@ class MysqliAdapter implements AdapterInterface
      *
      * @return bool
      */
-    public function save(EntityWrapper $wrapper)
-    {
-        $query = $this->sqlGenerator->save($wrapper);
-        return $this->query($query);
-    }
-
-    /**
-     * @param EntityWrapper $wrapper
-     *
-     * @return bool
-     */
     public function update(EntityWrapper $wrapper)
     {
         $query = $this->sqlGenerator->update($wrapper);

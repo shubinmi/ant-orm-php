@@ -9,39 +9,39 @@ use AntOrm\Entity\OrmEntity;
 class WrappersLinking
 {
     /**
-     * @param EntityWrapper $me
-     * @param EntityWrapper $to
+     * @param EntityWrapper $root
+     * @param EntityWrapper $kid
      */
-    public static function connect(EntityWrapper $me, EntityWrapper &$to)
+    public static function connect(EntityWrapper $root, EntityWrapper &$kid)
     {
-        foreach ($me->getPreparedProperties() as $fromProperty) {
-            if (!$fromProperty->metaData->getRelated()) {
+        foreach ($root->getPreparedProperties() as $rootProperty) {
+            if (!$rootProperty->metaData->getRelated()) {
                 continue;
             }
             if (
-                $fromProperty->value instanceof OrmEntity
-                && get_class($fromProperty->value) !== get_class($to->getEntity())
+                $rootProperty->value instanceof OrmEntity
+                && get_class($rootProperty->value) !== get_class($kid->getEntity())
             ) {
                 continue;
             }
             if (
-                is_array($fromProperty->value)
-                && current($fromProperty->value) instanceof OrmEntity
-                && get_class(current($fromProperty->value)) !== get_class($to->getEntity())
+                is_array($rootProperty->value)
+                && current($rootProperty->value) instanceof OrmEntity
+                && get_class(current($rootProperty->value)) !== get_class($kid->getEntity())
             ) {
                 continue;
             }
-            foreach ($to->getPreparedProperties() as &$toProperty) {
-                if ($fromProperty->metaData->getRelated()->getBy()) {
+            foreach ($kid->getPreparedProperties() as &$kidProperty) {
+                if ($rootProperty->metaData->getRelated()->getBy()) {
                     continue;
                 }
-                if ($fromProperty->metaData->getRelated()->getOnHisColumn() !== $toProperty->metaData->getColumn()) {
+                if ($rootProperty->metaData->getRelated()->getOnHisColumn() !== $kidProperty->metaData->getColumn()) {
                     continue;
                 }
-                $toProperty->parentEntityWrapper = $me;
+                $kidProperty->parentEntityWrapper = $root;
                 return;
             }
-            $to->setMyParent($me);
+            $kid->setMyParent($root);
         }
     }
 

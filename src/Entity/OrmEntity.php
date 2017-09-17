@@ -17,7 +17,18 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
      */
     public $antOrmSearchParams = [];
 
-    public function __construct($params = null)
+    /**
+     * @var array
+     */
+    public $oldParams;
+
+    /**
+     * OrmEntity constructor.
+     *
+     * @param array|null|\stdClass|string $params
+     * @param bool                        $fromDb
+     */
+    public function __construct($params = null, $fromDb = false)
     {
         $params = $this->convertToArray($params);
         if (empty($params)) {
@@ -55,8 +66,10 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
                 }
             }
         }
-
         parent::__construct($myParams);
+        if ($fromDb) {
+            $this->oldParams = $myParams;
+        }
     }
 
     public function beforeUpdate()
@@ -68,6 +81,14 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
     }
 
     public function beforeDelete()
+    {
+    }
+
+    public function beforeUpsert()
+    {
+    }
+
+    public function beforeSave()
     {
     }
 
@@ -89,6 +110,20 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
      * @param bool $wasSuccess
      */
     public function afterDelete($wasSuccess = true)
+    {
+    }
+
+    /**
+     * @param bool $wasSuccess
+     */
+    public function afterUpsert($wasSuccess = true)
+    {
+    }
+
+    /**
+     * @param bool $wasSuccess
+     */
+    public function afterSave($wasSuccess = true)
     {
     }
 

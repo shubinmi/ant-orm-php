@@ -4,15 +4,11 @@ namespace AntOrm\Repository;
 
 use AntOrm\Entity\Helpers\EntityPreparer;
 use AntOrm\Entity\OrmEntity;
+use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\Storage\OrmStorage;
 
 class OrmRepository
 {
-    const OPERATION_SELECT = 'select';
-    const OPERATION_INSERT = 'insert';
-    const OPERATION_UPDATE = 'update';
-    const OPERATION_DELETE = 'delete';
-
     /**
      * @var OrmStorage
      */
@@ -36,31 +32,31 @@ class OrmRepository
         $this->init();
     }
 
-    function __clone()
+    public function __clone()
     {
         $this->storage = clone $this->storage;
     }
 
-    protected function init()
-    {
-    }
-
     /**
-     * @param array $params
+     * @param array          $params
+     * @param OrmEntity|null $entityClass
      *
      * @return OrmEntity[]
      * @throws \Exception
      */
-    public function find(array $params = [])
+    public function find(array $params = [], OrmEntity $entityClass = null)
     {
-        if (!is_subclass_of($this->entityClass, OrmEntity::className())) {
-            throw new \Exception('Property "entityClass" has to be a children of ' . OrmEntity::className());
+        if (!$entityClass) {
+            $entityClass = $this->entityClass;
         }
-        self::select($this->entityClass, $params);
+        if (!is_subclass_of($entityClass, OrmEntity::className())) {
+            throw new \Exception('"entityClass" has to be a children of ' . OrmEntity::className());
+        }
+        self::select($entityClass, $params);
         $result = self::result();
         $items  = [];
         foreach ($result as $item) {
-            $items[] = new $this->entityClass($item);
+            $items[] = new $entityClass($item, true);
         }
 
         return $items;
@@ -78,7 +74,7 @@ class OrmRepository
         $entity                     = new $entityClass();
         $entity->antOrmSearchParams = $searchParams;
 
-        return $this->exec(self::OPERATION_SELECT, $entity);
+        return $this->exec(CrudDbInterface::OPERATION_SELECT, $entity);
     }
 
     /**
@@ -90,7 +86,11 @@ class OrmRepository
     public function insert(OrmEntity $entity, $asTransaction = true)
     {
         $entity->beforeInsert();
-        $wasSuccess = $this->make(self::OPERATION_INSERT, $entity, $asTransaction);
+        $wasSuccess = $this->make(
+            CrudDbInterface::OPERATION_INSERT,
+            $entity,
+            $asTransaction
+        );
         $entity->afterInsert($wasSuccess);
 
         return $wasSuccess;
@@ -105,7 +105,11 @@ class OrmRepository
     public function update(OrmEntity $entity, $asTransaction = true)
     {
         $entity->beforeUpdate();
-        $wasSuccess = $this->make(self::OPERATION_UPDATE, $entity, $asTransaction);
+        $wasSuccess = $this->make(
+            CrudDbInterface::OPERATION_UPDATE,
+            $entity,
+            $asTransaction
+        );
         $entity->afterUpdate($wasSuccess);
 
         return $wasSuccess;
@@ -120,8 +124,50 @@ class OrmRepository
     public function delete(OrmEntity $entity, $asTransaction = true)
     {
         $entity->beforeDelete();
-        $wasSuccess = $this->make(self::OPERATION_DELETE, $entity, $asTransaction);
+        $wasSuccess = $this->make(
+            CrudDbInterface::OPERATION_DELETE,
+            $entity,
+            $asTransaction
+        );
         $entity->afterDelete($wasSuccess);
+
+        return $wasSuccess;
+    }
+
+    /**
+     * @param OrmEntity $entity
+     * @param bool      $asTransaction
+     *
+     * @return bool
+     */
+    public function upsert(OrmEntity $entity, $asTransaction = true)
+    {
+        $entity->beforeUpsert();
+        $wasSuccess = $this->make(
+            CrudDbInterface::OPERATION_UPSERT,
+            $entity,
+            $asTransaction
+        );
+        $entity->afterUpsert($wasSuccess);
+
+        return $wasSuccess;
+    }
+
+    /**
+     * @param OrmEntity $entity
+     * @param bool      $asTransaction
+     *
+     * @return bool
+     */
+    public function save(OrmEntity $entity, $asTransaction = true)
+    {
+        $entity->beforeSave();
+        $wasSuccess = $this->make(
+            CrudDbInterface::OPERATION_SAVE,
+            $entity,
+            $asTransaction
+        );
+        $entity->afterSave($wasSuccess);
 
         return $wasSuccess;
     }
@@ -228,6 +274,10 @@ class OrmRepository
     public function getStorage()
     {
         return $this->storage;
+    }
+
+    protected function init()
+    {
     }
 
     /**
