@@ -3,6 +3,7 @@
 namespace AntOrm\Repository;
 
 use AntOrm\Entity\Helpers\EntityPreparer;
+use AntOrm\Entity\Helpers\WrappersLinking;
 use AntOrm\Entity\OrmEntity;
 use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\Storage\OrmStorage;
@@ -170,6 +171,21 @@ class OrmRepository
         $entity->afterSave($wasSuccess);
 
         return $wasSuccess;
+    }
+
+    /**
+     * @param OrmEntity $what
+     * @param OrmEntity $from
+     *
+     * @return bool
+     */
+    public function unlink(OrmEntity $what, OrmEntity $from)
+    {
+        $rootWrapper = EntityPreparer::getWrapper($from);
+        $kidWrapper  = EntityPreparer::getWrapper($what);
+        WrappersLinking::connect($rootWrapper, $kidWrapper);
+
+        return $this->storage->delete($kidWrapper);
     }
 
     /**

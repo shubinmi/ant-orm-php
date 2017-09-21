@@ -12,6 +12,7 @@ interface CrudDbInterface
     const OPERATION_DELETE = 'delete';
     const OPERATION_SAVE   = 'save';
     const OPERATION_UPSERT = 'upsert';
+    const OPERATION_UNLINK = 'unlink';
 
     public function select(EntityWrapper $wrapper);
 
