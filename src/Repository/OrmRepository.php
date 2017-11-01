@@ -185,7 +185,7 @@ class OrmRepository
         $kidWrapper  = EntityPreparer::getWrapper($what);
         WrappersLinking::connect($rootWrapper, $kidWrapper);
 
-        return $this->storage->delete($kidWrapper);
+        return $this->storage->unlink($kidWrapper);
     }
 
     /**

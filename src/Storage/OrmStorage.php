@@ -11,9 +11,13 @@ use AntOrm\Entity\Helpers\WrappersLinking;
 use AntOrm\Entity\OrmEntity;
 use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\Storage\Singleton\QueriesQueueForDeleteStorage;
+use Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerInterface;
 
-class OrmStorage implements CrudDbInterface
+class OrmStorage implements CrudDbInterface, LoggerAwareInterface
 {
+    const ALIAS_MYSQLI = 'mysqli';
+
     /**
      * @var AdapterInterface
      */
@@ -28,7 +32,7 @@ class OrmStorage implements CrudDbInterface
      * @var array
      */
     private $mapOfAdapters = [
-        'mysqli' => MysqliAdapter::class
+        self::ALIAS_MYSQLI => MysqliAdapter::class
     ];
 
     public function __clone()
@@ -56,6 +60,17 @@ class OrmStorage implements CrudDbInterface
         }
         $this->adapter             = $adapter;
         $this->availableOperations = get_class_methods('AntOrm\QueryRules\CrudDbInterface');
+    }
+
+    /**
+     * @param LoggerInterface $logger
+     *
+     * @return $this
+     */
+    public function setLogger(LoggerInterface $logger)
+    {
+        $this->adapter->setLogger($logger);
+        return $this;
     }
 
     /**
@@ -134,13 +149,23 @@ class OrmStorage implements CrudDbInterface
      *
      * @return bool
      */
+    public function unlink(EntityWrapper $wrapper)
+    {
+        return $this->adapter->unlink($wrapper);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
     public function delete(EntityWrapper $wrapper)
     {
         if (QueriesQueueForDeleteStorage::has($wrapper->getEntity())) {
             return true;
         }
         QueriesQueueForDeleteStorage::add($wrapper->getEntity());
-        if ($wrapper->getMyParent()) {
+        if ($wrapper->isMeToParentAsIHaveMany()) {
             return $this->adapter->delete($wrapper);
         }
         if (!$this->sameForRelatedEntities('delete', $wrapper, false)) {

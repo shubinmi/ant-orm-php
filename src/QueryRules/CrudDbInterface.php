@@ -23,4 +23,8 @@ interface CrudDbInterface
     public function upsert(EntityWrapper $wrapper);
 
     public function delete(EntityWrapper $wrapper);
+
+    public function save(EntityWrapper $wrapper);
+
+    public function unlink(EntityWrapper $wrapper);
 }

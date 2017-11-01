@@ -7,13 +7,18 @@ use AntOrm\Entity\EntityWrapper;
 use AntOrm\QueryRules\QueryStructure;
 use AntOrm\QueryRules\Sql\MySql;
 use AntOrm\QueryRules\TransactionQueryList;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LogLevel;
+use Psr\Log\NullLogger;
 
 class MysqliAdapter implements AdapterInterface
 {
+    use LoggerAwareTrait;
+
     /**
      * @var \mysqli
      */
-    private $adapter;
+    private $driver;
 
     /**
      * @var \mysqli_stmt[]
@@ -62,27 +67,35 @@ class MysqliAdapter implements AdapterInterface
         if (is_array($config)) {
             $config = new MysqliConfig($config);
         } elseif (!$config instanceof MysqliConfig) {
-            throw new \Exception('Config of mysqli storage must be array or object of MysqliConfig class');
+            $err = 'Config of mysqli storage must be array or object of MysqliConfig class';
+            $this->logger->log(LogLevel::EMERGENCY, $err, ['Got ' . gettype($config)]);
+            throw new \Exception($err);
         }
-        $this->config  = $config;
-        $this->adapter = new \mysqli($config->host, $config->user, $config->pass, $config->db);
+        $this->config = $config;
+        $this->driver = new \mysqli($config->host, $config->user, $config->pass, $config->db);
         if (mysqli_connect_errno()) {
-            throw new \Exception("Can't connect to db:\n" . mysqli_connect_error());
+            $err = "Can't connect to db: " . mysqli_connect_error();
+            $this->logger->log(LogLevel::EMERGENCY, $err, ['Got ' . gettype($config)]);
+            throw new \Exception($err);
         }
-        $this->adapter->set_charset("utf8");
-        $this->adapter->autocommit(true);
+        $this->driver->set_charset("utf8");
+        $this->driver->autocommit(true);
         $this->sqlGenerator = new MySql();
+        $this->logger       = new NullLogger();
+        $this->logger->log(LogLevel::DEBUG, 'Connected to DB');
     }
 
-    function __clone()
+    public function __clone()
     {
-        $this->adapter = new \mysqli($this->config->host, $this->config->user, $this->config->pass, $this->config->db);
-        $this->stmt    = [];
+        $this->driver = new \mysqli($this->config->host, $this->config->user, $this->config->pass, $this->config->db);
+        $this->stmt   = [];
+        $this->logger->log(LogLevel::DEBUG, 'Connected to DB cloned');
     }
 
     public function __destruct()
     {
         $this->closeConnect();
+        $this->logger->log(LogLevel::DEBUG, 'Connected to DB closed');
         unset($this);
     }
 
@@ -92,6 +105,7 @@ class MysqliAdapter implements AdapterInterface
     public function startTransaction()
     {
         $this->onTransaction = true;
+        $this->logger->log(LogLevel::DEBUG, 'Transaction started to collect queries');
         return true;
     }
 
@@ -121,6 +135,7 @@ class MysqliAdapter implements AdapterInterface
         }
         $transaction->addQuery((new QueryStructure())->setQuery('commit'));
         $this->onTransaction = false;
+        $this->logger->log(LogLevel::DEBUG, 'Transaction commit started');
 
         return $this->query($transaction);
     }
@@ -130,7 +145,8 @@ class MysqliAdapter implements AdapterInterface
      */
     public function rollbackTransactions()
     {
-        return $this->adapter->rollback();
+        $this->logger->log(LogLevel::DEBUG, 'Transaction rollback');
+        return $this->driver->rollback();
     }
 
     /**
@@ -161,9 +177,25 @@ class MysqliAdapter implements AdapterInterface
             /** @var TransactionQueryList $query */
             foreach ($query->getQueries() as $q) {
                 $this->prepareQuery($q);
+                $this->logger->log(
+                    LogLevel::DEBUG, 'Query prepared',
+                    [
+                        'sql'    => $q->getQuery(),
+                        'params' => implode(',', $q->getBindParams()),
+                        'types'  => implode(',', $q->getBindPatterns())
+                    ]
+                );
             }
         } elseif ($query instanceof QueryStructure) {
             $this->prepareQuery($query);
+            $this->logger->log(
+                LogLevel::DEBUG, 'Query prepared',
+                [
+                    'sql'    => $query->getQuery(),
+                    'params' => implode(',', $query->getBindParams()),
+                    'types'  => implode(',', $query->getBindPatterns())
+                ]
+            );
         }
         foreach ($this->stmt as $stmt) {
             if (!$stmt->execute()) {
@@ -171,18 +203,24 @@ class MysqliAdapter implements AdapterInterface
                     $this->transactionWaitingCommit = false;
                     $this->rollbackTransactions();
                 }
-                throw new \Exception('Query error: ' . $stmt->error);
+                $err = 'Query error: ' . $stmt->error;
+                $this->logger->log(LogLevel::ERROR, $err);
+                throw new \Exception($err);
             }
+            $this->logger->log(LogLevel::DEBUG, 'Query execute success');
         }
         if ($this->transactionWaitingCommit) {
             $this->transactionWaitingCommit = false;
-            if (!$this->adapter->commit()) {
+            if (!$this->driver->commit()) {
                 if ($this->transactionWaitingCommit) {
                     $this->rollbackTransactions();
                 }
-                throw new \Exception('Transaction failed: ' . $this->adapter->error);
+                $err = 'Transaction failed: ' . $this->driver->error;
+                $this->logger->log(LogLevel::ERROR, $err);
+                throw new \Exception($err);
             }
-            $this->adapter->autocommit(true);
+            $this->driver->autocommit(true);
+            $this->logger->log(LogLevel::DEBUG, 'Transaction commit success');
         }
 
         return true;
@@ -238,10 +276,26 @@ class MysqliAdapter implements AdapterInterface
      *
      * @return bool
      */
+    public function unlink(EntityWrapper $wrapper)
+    {
+        $query = $this->sqlGenerator->unlink($wrapper);
+        return $this->query($query);
+    }
+
+    /**
+     * @param EntityWrapper $wrapper
+     *
+     * @return bool
+     */
     public function delete(EntityWrapper $wrapper)
     {
         $query = $this->sqlGenerator->delete($wrapper);
         return $this->query($query);
+    }
+
+    public function save(EntityWrapper $wrapper)
+    {
+        // Not used
     }
 
     /**
@@ -331,8 +385,8 @@ class MysqliAdapter implements AdapterInterface
                     }
                 }
             }
-            if ($this->adapter instanceof \mysqli) {
-                @$this->adapter->close();
+            if ($this->driver instanceof \mysqli) {
+                @$this->driver->close();
             }
         } catch (\Exception $e) {
         }
@@ -355,16 +409,20 @@ class MysqliAdapter implements AdapterInterface
                 continue;
             }
             if ($tempSql == 'starttransaction') {
-                $this->adapter->autocommit(false);
+                $this->driver->autocommit(false);
                 continue;
             }
             try {
-                $stmt = $this->adapter->prepare($sql);
+                $stmt = $this->driver->prepare($sql);
             } catch (\Exception $e) {
-                throw new \Exception('Error on mysqli::prepare for : ' . $sql . ' ; ' . $e->getMessage());
+                $err = 'Error on mysqli::prepare for : ' . $sql . ' ; ' . $e->getMessage();
+                $this->logger->log(LogLevel::ERROR, $err);
+                throw new \Exception($err);
             }
             if ($stmt === false) {
-                throw new \Exception('Incorrect sql for mysqli::prepare : ' . $sql);
+                $err = 'Incorrect sql for mysqli::prepare : ' . $sql;
+                $this->logger->log(LogLevel::ERROR, $err);
+                throw new \Exception($err);
             }
             if (!empty($query->getBindParams())) {
                 $params = array_merge(
@@ -382,11 +440,16 @@ class MysqliAdapter implements AdapterInterface
                         )
                     );
                 } catch (\Exception $e) {
+                    $err     = 'Incorrect sql for mysqli::bind_param : ' . $e->getMessage();
+                    $context = [
+                        'Query: ' . $sql,
+                        'Bind values: ' . implode(', ', $query->getBindParams()),
+                        'Bind patterns: ' . implode(', ', $query->getBindParams())
+                    ];
+                    $this->logger->log(LogLevel::ERROR, $err, $context);
                     throw new \Exception(
-                        'Incorrect sql for mysqli::bind_param : ' . $sql
-                        . PHP_EOL . 'Bind patterns: ' . implode(', ', $query->getBindPatterns())
-                        . PHP_EOL . 'Bind values: ' . implode(', ', $query->getBindParams())
-                        . PHP_EOL . $e->getMessage()
+                        'Incorrect sql for mysqli::bind_param : ' . $e->getMessage() . '; '
+                        . implode('; ', $context)
                     );
                 }
             }

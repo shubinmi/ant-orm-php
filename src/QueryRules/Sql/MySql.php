@@ -59,8 +59,9 @@ class MySql implements CrudDbInterface
     public function update(EntityWrapper $wrapper)
     {
         $mediatorQuery = null;
-        // if many2many
-        if ($wrapper->getMyParent()) {
+        if ($wrapper->isMeToParentAsIHaveMany()) {
+            return $this->extendedInsert($wrapper, true);
+        } elseif ($wrapper->isMeToParentAsIHaveOne()) {
             $mediatorQuery = $this->extendedInsert($wrapper, true);
         }
         $query                  = new QueryStructure();
@@ -127,7 +128,10 @@ class MySql implements CrudDbInterface
      */
     public function delete(EntityWrapper $wrapper)
     {
-        if ($wrapper->getMyParent() && $parentProperty = $this->findParentProperty($wrapper)) {
+        if (
+            $wrapper->isMeToParentAsIHaveMany()
+            && $parentProperty = $this->findParentProperty($wrapper)
+        ) {
             return $this->getUnlinkMeQueryForDelete($wrapper, $parentProperty);
         }
         $query                  = new QueryStructure();
@@ -206,24 +210,129 @@ class MySql implements CrudDbInterface
         return $query;
     }
 
-    /**
-     * @param EntityWrapper $myWrapper
-     *
-     * @return QueryStructure|null
-     */
-    public function unlinkMe(EntityWrapper $myWrapper)
+    public function save(EntityWrapper $wrapper)
     {
-        return $this->getMany2ManyFor(false, $myWrapper);
+        // Not used
+    }
+
+    public function unlink(EntityWrapper $wrapper)
+    {
+        return $this->unlinkMe($wrapper);
     }
 
     /**
      * @param EntityWrapper $myWrapper
      *
-     * @return QueryStructure|null
+     * @return QueryStructure
+     */
+    public function unlinkMe(EntityWrapper $myWrapper)
+    {
+        if (!$myWrapper->isMeToParentAsIHaveMany()) {
+            return null;
+        }
+        if (!$parentProperty = $this->findParentProperty($myWrapper)) {
+            return null;
+        }
+        $mySelectColumn    = $parentProperty->metaData->getRelated()->getOnHisColumn();
+        $hisSelectColumn   = $parentProperty->metaData->getRelated()->getOnMyColumn();
+        $mediatorTable     = $parentProperty->metaData->getRelated()->getBy()->getTable();
+        $mediatorMyColumn  = $parentProperty->metaData->getRelated()->getBy()->getRelatedColumn();
+        $mediatorHisColumn = $parentProperty->metaData->getRelated()->getBy()->getMyColumn();
+        $queryMediator     = new QueryStructure();
+        foreach ($myWrapper->getPreparedProperties() as $property) {
+            if (!isset($property->value)) {
+                continue;
+            }
+            if ($property->metaData->getColumn() == $mySelectColumn) {
+                $queryMediator->addBindParam($property->value);
+                $queryMediator->addBindPattern($property->getBindTypePattern());
+                break;
+            }
+        }
+        foreach ($myWrapper->getMyParent()->getPreparedProperties() as $property) {
+            if (!isset($property->value)) {
+                continue;
+            }
+            if ($property->metaData->getColumn() == $hisSelectColumn) {
+                $queryMediator->addBindParam($property->value);
+                $queryMediator->addBindPattern($property->getBindTypePattern());
+                break;
+            }
+        }
+        if (count($queryMediator->getBindParams()) != 2) {
+            return new QueryStructure();
+        }
+        /** @noinspection SqlNoDataSourceInspection */
+        /** @noinspection SqlDialectInspection */
+        $queryMediator->setQuery(
+            "DELETE FROM `{$mediatorTable}` WHERE `{$mediatorMyColumn}` = ? AND `{$mediatorHisColumn}` = ?"
+        );
+
+        return $queryMediator;
+    }
+
+    /**
+     * @param EntityWrapper $myWrapper
+     *
+     * @return QueryStructure
      */
     private function linkMe(EntityWrapper $myWrapper)
     {
-        return $this->getMany2ManyFor(true, $myWrapper);
+        if (!$myWrapper->isMeToParentAsIHaveMany()) {
+            return null;
+        }
+        if (!$parentProperty = $this->findParentProperty($myWrapper)) {
+            return null;
+        }
+        $myTable           = $myWrapper->getMetaData()->getTable()->getName();
+        $hisTable          = $myWrapper->getMyParent()->getMetaData()->getTable()->getName();
+        $mySelectColumn    = $parentProperty->metaData->getRelated()->getOnHisColumn();
+        $hisSelectColumn   = $parentProperty->metaData->getRelated()->getOnMyColumn();
+        $mediatorTable     = $parentProperty->metaData->getRelated()->getBy()->getTable();
+        $mediatorMyColumn  = $parentProperty->metaData->getRelated()->getBy()->getRelatedColumn();
+        $mediatorHisColumn = $parentProperty->metaData->getRelated()->getBy()->getMyColumn();
+
+        $queryMediator = new QueryStructure();
+        $where         = '';
+        foreach ($myWrapper->getPreparedProperties() as $property) {
+            if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            $queryMediator->addBindParam($property->value);
+            $queryMediator->addBindPattern($property->getBindTypePattern());
+            if ($where) {
+                $where .= ' AND ';
+            }
+            $where .= " `{$property->metaData->getColumn()}` = ? ";
+        }
+        /** @noinspection SqlDialectInspection */
+        /** @noinspection SqlNoDataSourceInspection */
+        $sqlMyColumn =
+            "SELECT `{$mySelectColumn}` FROM `{$myTable}` WHERE {$where} ORDER BY `{$mySelectColumn}` DESC LIMIT 1";
+
+        $where = '';
+        foreach ($myWrapper->getMyParent()->getPreparedProperties() as $property) {
+            if (!isset($property->value) || $property->metaData->getRelated()) {
+                continue;
+            }
+            $queryMediator->addBindParam($property->value);
+            $queryMediator->addBindPattern($property->getBindTypePattern());
+            if ($where) {
+                $where .= ' AND ';
+            }
+            $where .= " `{$property->metaData->getColumn()}` = ? ";
+        }
+        /** @noinspection SqlDialectInspection */
+        /** @noinspection SqlNoDataSourceInspection */
+        $sqlHisColumn =
+            "SELECT `{$hisSelectColumn}` FROM `{$hisTable}` WHERE {$where} ORDER BY `{$hisSelectColumn}` DESC LIMIT 1";
+        /** @noinspection SqlNoDataSourceInspection */
+        /** @noinspection SqlDialectInspection */
+        $queryMediator->setQuery(
+            "INSERT IGNORE INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
+        );
+
+        return $queryMediator;
     }
 
     /**
@@ -301,7 +410,7 @@ class MySql implements CrudDbInterface
         $properties  = $wrapper->getPreparedProperties();
         $queryValues = $queryColumns = [];
         $mediators   = [];
-        if ($wrapper->getMyParent()) {
+        if ($wrapper->isMeToParentAsIHaveMany()) {
             $mediators[]     = $this->unlinkMe($wrapper);
             $mediators[]     = $this->linkMe($wrapper);
             $ignoreDuplicate = true;
@@ -359,75 +468,6 @@ class MySql implements CrudDbInterface
             $query->addQuery($mediator);
         }
         return $query;
-    }
-
-    /**
-     * @param bool          $linking
-     * @param EntityWrapper $myWrapper
-     *
-     * @return QueryStructure|null
-     */
-    private function getMany2ManyFor($linking = true, EntityWrapper $myWrapper)
-    {
-        if (!$parentProperty = $this->findParentProperty($myWrapper)) {
-            return null;
-        }
-        $myTable           = $myWrapper->getMetaData()->getTable()->getName();
-        $hisTable          = $myWrapper->getMyParent()->getMetaData()->getTable()->getName();
-        $mySelectColumn    = $parentProperty->metaData->getRelated()->getOnHisColumn();
-        $hisSelectColumn   = $parentProperty->metaData->getRelated()->getOnMyColumn();
-        $mediatorTable     = $parentProperty->metaData->getRelated()->getBy()->getTable();
-        $mediatorMyColumn  = $parentProperty->metaData->getRelated()->getBy()->getRelatedColumn();
-        $mediatorHisColumn = $parentProperty->metaData->getRelated()->getBy()->getMyColumn();
-
-        $queryMediator = new QueryStructure();
-        $where         = '';
-        foreach ($myWrapper->getPreparedProperties() as $property) {
-            if (!isset($property->value) || $property->metaData->getRelated()) {
-                continue;
-            }
-            $queryMediator->addBindParam($property->value);
-            $queryMediator->addBindPattern($property->getBindTypePattern());
-            if ($where) {
-                $where .= ' AND ';
-            }
-            $where .= " `{$property->metaData->getColumn()}` = ? ";
-        }
-        /** @noinspection SqlDialectInspection */
-        /** @noinspection SqlNoDataSourceInspection */
-        $sqlMyColumn =
-            "SELECT `{$mySelectColumn}` FROM `{$myTable}` WHERE {$where} ORDER BY `{$mySelectColumn}` DESC LIMIT 1";
-
-        $where = '';
-        foreach ($myWrapper->getMyParent()->getPreparedProperties() as $property) {
-            if (!isset($property->value) || $property->metaData->getRelated()) {
-                continue;
-            }
-            $queryMediator->addBindParam($property->value);
-            $queryMediator->addBindPattern($property->getBindTypePattern());
-            if ($where) {
-                $where .= ' AND ';
-            }
-            $where .= " `{$property->metaData->getColumn()}` = ? ";
-        }
-        /** @noinspection SqlDialectInspection */
-        /** @noinspection SqlNoDataSourceInspection */
-        $sqlHisColumn =
-            "SELECT `{$hisSelectColumn}` FROM `{$hisTable}` WHERE {$where} ORDER BY `{$hisSelectColumn}` DESC LIMIT 1";
-        if ($linking) {
-            /** @noinspection SqlNoDataSourceInspection */
-            /** @noinspection SqlDialectInspection */
-            $queryMediator->setQuery(
-                "INSERT IGNORE INTO `{$mediatorTable}` (`{$mediatorMyColumn}`, `{$mediatorHisColumn}`) VALUES (({$sqlMyColumn}), ({$sqlHisColumn}))"
-            );
-        } else {
-            /** @noinspection SqlNoDataSourceInspection */
-            $queryMediator->setQuery(
-                "DELETE FROM `{$mediatorTable}` WHERE `{$mediatorMyColumn}` = ({$sqlMyColumn}) AND `{$mediatorHisColumn}` = ({$sqlHisColumn})"
-            );
-        }
-
-        return $queryMediator;
     }
 
     /**

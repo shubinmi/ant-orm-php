@@ -21,7 +21,8 @@
         "source": "https://github.com/shubinmi/ant-orm-php"
     },
     "require": {
-        "php": ">=5.4"
+        "php": ">=5.4",
+        "psr/log": "^1.0"
     },
     "require-dev": {
         "ext-mysqlnd": "*",

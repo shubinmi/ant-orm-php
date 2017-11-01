@@ -25,7 +25,7 @@ class BasicTest extends TestCase
         /** @var UserEntity $user */
         $user = current($users);
         $this->assertEquals('Oleg', $user->profile->firstName);
-        $this->assertCount(2, $user->profile->addresses);
+        $this->assertCount(2, (array)$user->profile->addresses);
         $this->assertEquals(1, current($user->profile->addresses)->userId);
         $this->assertCount(2, $user->hobbies);
         $this->assertEquals('Fishing', current($user->hobbies)->name);

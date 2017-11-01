@@ -4,6 +4,9 @@ namespace AntOrm\Entity;
 
 class EntityWrapper
 {
+    const I_HAVE_MANY = 'haveMany';
+    const I_HAVE_ONE  = 'haveOne';
+
     /**
      * @var OrmEntity
      */
@@ -23,6 +26,11 @@ class EntityWrapper
      * @var EntityWrapper
      */
     protected $myParent;
+
+    /**
+     * @var string
+     */
+    protected $relationshipWithParent;
 
     /**
      * @return OrmEntity
@@ -97,6 +105,40 @@ class EntityWrapper
     public function setMyParent($myParent)
     {
         $this->myParent = $myParent;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isMeToParentAsIHaveMany()
+    {
+        return $this->relationshipWithParent == self::I_HAVE_MANY;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isMeToParentAsIHaveOne()
+    {
+        return $this->relationshipWithParent == self::I_HAVE_ONE;
+    }
+
+    /**
+     * @return $this
+     */
+    public function setMeToParentAsIHaveMany()
+    {
+        $this->relationshipWithParent = self::I_HAVE_MANY;
+        return $this;
+    }
+
+    /**
+     * @return $this
+     */
+    public function setMeToParentAsIHaveOne()
+    {
+        $this->relationshipWithParent = self::I_HAVE_ONE;
         return $this;
     }
 }

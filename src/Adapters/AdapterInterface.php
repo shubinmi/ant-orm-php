@@ -6,8 +6,9 @@ use AntOrm\Adapters\Objects\StorageConfig;
 use AntOrm\QueryRules\CrudDbInterface;
 use AntOrm\QueryRules\QueryStructure;
 use AntOrm\QueryRules\TransactionQueryList;
+use Psr\Log\LoggerAwareInterface;
 
-interface AdapterInterface extends CrudDbInterface
+interface AdapterInterface extends CrudDbInterface, LoggerAwareInterface
 {
     /**
      * @param array|StorageConfig $config

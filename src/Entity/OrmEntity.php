@@ -52,7 +52,7 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
                 if (!is_array($param)) {
                     continue;
                 }
-                $myParams[$column->getName()] = new $className(current($param));
+                $myParams[$column->getName()] = new $className(current($param), $fromDb);
             } else {
                 if (!is_array($param)) {
                     continue;
@@ -62,7 +62,7 @@ abstract class OrmEntity extends ConstructFromArrayOrJson
                     if (!is_array($data)) {
                         continue;
                     }
-                    $myParams[$column->getName()][] = new $className($data);
+                    $myParams[$column->getName()][] = new $className($data, $fromDb);
                 }
             }
         }

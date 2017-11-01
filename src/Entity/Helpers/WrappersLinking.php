@@ -39,9 +39,10 @@ class WrappersLinking
                     continue;
                 }
                 $kidProperty->parentEntityWrapper = $root;
+                $kid->setMyParent($root)->setMeToParentAsIHaveOne();
                 return;
             }
-            $kid->setMyParent($root);
+            $kid->setMyParent($root)->setMeToParentAsIHaveMany();
         }
     }
 
@@ -52,6 +53,9 @@ class WrappersLinking
      */
     public static function getRelatedParentPropertyForMany2Many(EntityWrapper $wrapper)
     {
+        if (!$wrapper->isMeToParentAsIHaveMany()) {
+            return null;
+        }
         foreach ($wrapper->getMyParent()->getPreparedProperties() as $property) {
             if (
                 $property->metaData->getRelated()
